@@ -68,5 +68,5 @@ void loop() {
   TWELVEV_HSD1_Current = read_current(TWELVEV_HSD1_CSENSE);
   TWELVEV_HSD2_Current = read_current(TWELVEV_HSD2_CSENSE);
   VBAT_Current = read_current(VBAT_CSENSE);
-  VBAT_Voltage = analogRead(VBAT_VSENSE) / 4096 * 3.3; //Give or take
+  VBAT_Voltage = map(analogRead(VBAT_VSENSE), 2491, 3800, 15000, 21000);
 }
