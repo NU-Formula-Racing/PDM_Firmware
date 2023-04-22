@@ -44,3 +44,13 @@ float PDM::ReadCurrent(uint8_t pin, uint8_t sens = 0)
     }
     return curr;
 }
+
+/**
+ * @brief Reads the voltage in mV.
+ *
+ * @return float
+ */
+float PDM::ReadVoltage(uint8_t pin)
+{
+    return analogRead(pin) / 4096 * 3.3;
+}

@@ -11,6 +11,7 @@ public:
 
     // Methods
     float ReadCurrent(uint8_t pin, uint8_t sens);
+    float ReadVoltage(uint8_t pin);
 
     // CAN address.
     const uint16_t kCANId1{0x500};
