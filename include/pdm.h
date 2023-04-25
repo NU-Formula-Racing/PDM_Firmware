@@ -13,9 +13,13 @@ public:
     float ReadCurrent(uint8_t pin, uint8_t sens);
     float ReadVoltage(uint8_t pin);
 
-    // CAN address.
+    /// CAN Addresses ///
+    // PDM
     const uint16_t kCANId1{0x500};
     const uint16_t kCANId2{0x501};
+    // Brake Pressure
+    const uint16_t kCANIdFB{0x410};
+    const uint16_t kCANIdBB{0x411};
 
     /// Pins ///
 
@@ -37,18 +41,6 @@ public:
     static constexpr int AC_FAN_12V_ENABLE = 18;
     static constexpr int LC_FAN_12V_ENABLE = 19;
     static constexpr int LC_PUMP_12V_ENABLE = 21;
-
-    // Store Currents
-    float FIVEV_Current;
-    float TWELVEV_Current;
-    float VBAT_RAIL_Current;
-    float AC_FAN_12V_Current;
-    float LC_FAN_12V_Current;
-    float LC_PUMP_12V_Current;
-    float TWELVEV_HSD1_Current;
-    float TWELVEV_HSD2_Current;
-    float VBAT_Current;
-    float VBAT_Voltage;
 
 private:
 };

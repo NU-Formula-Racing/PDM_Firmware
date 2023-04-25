@@ -81,9 +81,20 @@ CANSignal<float, 24, 8, CANTemplateConvertFloat(0.02), CANTemplateConvertFloat(0
 CANSignal<float, 32, 8, CANTemplateConvertFloat(0.02), CANTemplateConvertFloat(0), false> hsd_2_signal{};
 CANTXMessage<5> tx_message_2{can_bus, pdm_board.kCANId2, 5, 100, read_timer, air_fan_signal, liquid_fan_signal, liquid_pump_signal, hsd_1_signal, hsd_2_signal};
 
-// Control VBat Rail, 12VRail, 5VRai.
-// These devices are on by default, ToggleDevice turns them on or off
-// based on the limit.
+/// Brake Pressure ///
+// Receive Front Brake Pressure (psi)
+CANSignal<float, 0, 16, CANTemplateConvertFloat(1), CANTemplateConvertFloat(0), false> front_brake_press_rx_signal{};
+CANRXMessage<1> rx_message_1{can_bus, pdm_board.kCANIdFB, front_brake_press_rx_signal};
+// Receive Back Brake Pressure (psi)
+CANSignal<float, 0, 16, CANTemplateConvertFloat(1), CANTemplateConvertFloat(0), false> back_brake_press_rx_signal{};
+CANRXMessage<1> rx_message_1{can_bus, pdm_board.kCANIdFB, back_brake_press_rx_signal};
+
+/**
+ * @brief Control VBat Rail, 12VRail, 5VRail.
+ * These devices are on by default, ToggleDevice turns them on or off
+ * based on the limit.
+ * @return void
+ */
 void ToggleDevice(uint8_t pin, float current, uint8_t limit)
 {
     // Turn off device.
@@ -98,16 +109,27 @@ void ToggleDevice(uint8_t pin, float current, uint8_t limit)
     }
 }
 
-void RampUp(uint8_t index)
+/**
+ * @brief Slowly turn on device to specified percentage.
+ * @param[in] index: index of pin in PWM_Pins[] array
+ * @param[in] percentage: power of device (needs to be value between 0 and 1, for example 0.5 is 50% power)
+ * @return void
+ */
+void RampUp(uint8_t index, u_int8_t percentage)
 {
     // Turn on device.
-    for (int dutyCycle = dutyCycles[index]; dutyCycle <= 255; dutyCycle++)
+    for (int dutyCycle = dutyCycles[index]; dutyCycle <= 255 * percentage; dutyCycle++)
     {
         PWM_Instance[index]->setPWM(PWM_Pins[index], frequency[index], dutyCycles[index]);
         delay(PWM_INTERVAL);
     }
 }
 
+/**
+ * @brief Slowly turn off device.
+ * @param[in] index: index of pin in PWM_Pins[] array
+ * @return void
+ */
 void RampDown(uint8_t index)
 {
     // Turn off device.
@@ -118,16 +140,43 @@ void RampDown(uint8_t index)
     }
 }
 
-void RampDevice(uint8_t pin, uint8_t index, float current, uint8_t limit)
+/**
+ * @brief Control when device is ramping up and down based on the current.
+ * @param[in] pin: pin on ESP32 (all pins found in pdm.h so use pdm_board)
+ * @param[in] index: index of pin in PWM_Pins[] array
+ * @param[in] current: current of device in Amps
+ * @param[in] limit: software disable limit in Amps
+ * @param[in] percentage: power of device (needs to be value between 0 and 1, for example 0.5 is 50% power)
+ * @return void
+ */
+void RampDevice(uint8_t pin, uint8_t index, float current, uint8_t limit, uint8_t percentage = 1)
 {
-    // Turn On
-    if (current > limit)
+    // Valid percentage.
+    if (percentage >= 0 && percentage <= 1)
     {
-        RampUp(index);
+        // Ramp up to 1 or specified percentage.
+        if (current > limit)
+        {
+            RampUp(index, percentage);
+        }
+        // Devices are off by default.
+        else
+        {
+            RampDown(index);
+        }
     }
+    // Not valid percentage just set device to full power.
     else
     {
-        RampDown(index);
+        if (current > limit)
+        {
+            RampUp(index, 1);
+        }
+        // Devices are off by default.
+        else
+        {
+            RampDown(index);
+        }
     }
 }
 
@@ -150,16 +199,22 @@ void ReadCurrents()
 
     // = AC_FAN_12V_Current && Enable/Disable
     air_fan_signal = pdm_board.ReadCurrent(pdm_board.AC_FAN_12V_CSENSE, 0);
-
+    RampDevice(pdm_board.AC_FAN_12V_CSENSE, 0, air_fan_signal, 20);
     // = LC_FAN_12V_Current && Enable/Disable
     liquid_fan_signal = pdm_board.ReadCurrent(pdm_board.LC_FAN_12V_CSENSE, 0);
+    RampDevice(pdm_board.LC_FAN_12V_CSENSE, 1, liquid_fan_signal, 20);
     // = LC_PUMP_12V_Current && Enable/Disable
     liquid_pump_signal = pdm_board.ReadCurrent(pdm_board.LC_PUMP_12V_CSENSE, 0);
+    RampDevice(pdm_board.LC_PUMP_12V_CSENSE, 2, liquid_pump_signal, 20);
     // = TWELVEV_HSD1_Current && Enable/Disable
     hsd_1_signal = pdm_board.ReadCurrent(pdm_board.TWELVEV_HSD1_CSENSE, 0);
+    RampDevice(pdm_board.LC_PUMP_12V_CSENSE, 3, hsd_1_signal, 1);
     // = TWELVEV_HSD2_Current && Enable/Disable
     hsd_2_signal = pdm_board.ReadCurrent(pdm_board.TWELVEV_HSD1_CSENSE, 0);
+    RampDevice(pdm_board.LC_PUMP_12V_CSENSE, 4, hsd_1_signal, 1);
 }
+
+//  turn on and off the brake light by reading brake pressure off CAN? I think it's HSD1
 
 void setup()
 {
