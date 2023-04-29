@@ -90,9 +90,32 @@ CANSignal<float, 0, 16, CANTemplateConvertFloat(1), CANTemplateConvertFloat(0), 
 CANRXMessage<1> rx_message_1{can_bus, pdm_board.kCANIdFB, back_brake_press_rx_signal};
 
 /**
+ * @brief Control when the brake light turns on.
+ * The brake light is in PSI units and it can range from 0 to 3000 PSI.
+ * @param[in] limit: Pressure value (PSI) to turn on brake light.
+ * @return void
+ */
+void ControlBrakeLight(uint8_t limit)
+{
+    // Turn off device.
+    if (front_brake_press_rx_signal > limit || back_brake_press_rx_signal > limit)
+    {
+        digitalWrite(pdm_board.TWELVEV_HSD1_CSENSE_ENABLE, HIGH);
+    }
+    // Turn on device
+    else
+    {
+        digitalWrite(pdm_board.TWELVEV_HSD1_CSENSE_ENABLE, LOW);
+    }
+}
+
+/**
  * @brief Control VBat Rail, 12VRail, 5VRail.
  * These devices are on by default, ToggleDevice turns them on or off
  * based on the limit.
+ * @param[in] pin: pin on ESP32 (all pins found in pdm.h so use pdm_board)
+ * @param[in] current: current of device in Amps
+ * @param[in] limit: software disable limit in Amps
  * @return void
  */
 void ToggleDevice(uint8_t pin, float current, uint8_t limit)
@@ -214,6 +237,13 @@ void ReadCurrents()
     RampDevice(pdm_board.LC_PUMP_12V_CSENSE, 4, hsd_1_signal, 1);
 }
 
+// Turn on brake lights based on the given limit (PSI), anything
+// greater than the value will cause the brake lights to turn on.
+void BrakeLight()
+{
+    ControlBrakeLight(100);
+}
+
 //  turn on and off the brake light by reading brake pressure off CAN? I think it's HSD1
 
 void setup()
@@ -245,10 +275,11 @@ void setup()
     // Initialize our timer(s) to read each sensor every
     // specified amount of time (ms).
     read_timer.AddTimer(100, ReadCurrents);
+    read_timer.AddTimer(100, BrakeLight);
 }
 
 void loop()
 {
-    // can_bus.Tick();
+    can_bus.Tick();
     read_timer.Tick(millis());
 }
