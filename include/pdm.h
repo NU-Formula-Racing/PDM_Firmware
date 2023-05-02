@@ -36,8 +36,8 @@ public:
     static constexpr int VBAT_VSENSE = 14;
 
     // Enable Pin Defines
-    static constexpr int TWELVEV_HSD1_CSENSE_ENABLE = 23;
-    static constexpr int TWELVEV_HSD2_CSENSE_ENABLE = 22;
+    static constexpr int TWELVEV_HSD1_ENABLE = 23;
+    static constexpr int TWELVEV_HSD2_ENABLE = 22;
     static constexpr int AC_FAN_12V_ENABLE = 18;
     static constexpr int LC_FAN_12V_ENABLE = 19;
     static constexpr int LC_PUMP_12V_ENABLE = 21;

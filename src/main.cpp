@@ -2,6 +2,7 @@
 #include "ESP32_FastPWM.h"
 #include "pdm.h"
 #include "virtualTimer.h"
+#include <array>
 
 #define SERIAL_DEBUG
 
@@ -21,22 +22,23 @@ VirtualTimerGroup read_timer;
 
 #define _PWM_LOGLEVEL_ 4
 // Time between each step of turning on and turning off a device.
-// Look at TurnOn and TurnOff functions.
-#define PWM_INTERVAL 5
+// Look at RampUp and RampDown functions (milliseconds to pause).
+#define PWM_INTERVAL 1
 
 // Specify all the pins that will need to controlled with PWM.
 // Not sure if all pins are PWM compatible.
-uint32_t PWM_Pins[] = {
-    pdm_board.AC_FAN_12V_CSENSE, pdm_board.LC_FAN_12V_CSENSE, pdm_board.LC_PUMP_12V_CSENSE,
-    pdm_board.TWELVEV_HSD1_CSENSE, pdm_board.TWELVEV_HSD1_CSENSE};
+std::array<uint8_t, 5> PWM_Pins = {
+    pdm_board.AC_FAN_12V_ENABLE, pdm_board.LC_FAN_12V_ENABLE, pdm_board.LC_PUMP_12V_ENABLE,
+    pdm_board.TWELVEV_HSD1_ENABLE, pdm_board.TWELVEV_HSD1_ENABLE};
+// uint32_t PWM_Pins[] =
 
 // There are 16 PWM channels from 0 to 15.
 // Not sure if it is necessary to have each pin operate on a separate channel.
 // I think its fine as long as they are the same frequency, but I put each pin on a separate channel
 // just in case.
-uint32_t PWM_chan[] = {0, 1, 2, 3, 4};
+std::array<uint8_t, 5> PWM_chan = {0, 1, 2, 3, 4};
 
-#define NUM_OF_PINS (sizeof(PWM_Pins) / sizeof(uint32_t))
+// #define NUM_OF_PINS (sizeof(PWM_Pins) / sizeof(uint32_t))
 
 // Duty cycle basically defines the percentage a device is off vs on.
 // It is a parameter of the square wave, for example 50% duty cycle means a device
@@ -46,13 +48,13 @@ uint32_t PWM_chan[] = {0, 1, 2, 3, 4};
 // to 0 turns off a device.
 // We have a separate duty cycle for each pin because they're at different
 // states at the same time.
-float dutyCycles[] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+std::array<float, 5> dutyCycles = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
 
 // PWM Frequency is the count of PWM interval periods per second, expressed in Hertz (Hz).
 // Mathematically, the frequency is equal to the inverse of the interval period's length (PWM_Frequency = 1 / PWM_Interval_Period).
 // This is just another property of the square wave, different devices can handle different frequencies.
 // For now, we assume that all devices can operate at the same frequency.
-float frequency[] = {1000.0f, 1000.0f, 1000.0f, 1000.0f, 1000.0f};
+std::array<float, 5> frequency = {1000.0f, 1000.0f, 1000.0f, 1000.0f, 1000.0f};
 
 // Max resolution is 20-bit
 // Resolution 65536 (16-bit) for lower frequencies, OK @ 1K
@@ -64,7 +66,7 @@ float frequency[] = {1000.0f, 1000.0f, 1000.0f, 1000.0f, 1000.0f};
 int PWM_resolution = 8;
 
 // Create PWM instance for each pin.
-ESP32_FAST_PWM *PWM_Instance[NUM_OF_PINS];
+ESP32_FAST_PWM *PWM_Instance[PWM_Pins.size()];
 
 /// CAN Signals ///
 CANSignal<float, 0, 8, CANTemplateConvertFloat(0.02), CANTemplateConvertFloat(0), false> v5_rail_signal{};
@@ -100,22 +102,22 @@ void ControlBrakeLight(uint8_t limit)
     // Turn off device.
     if (front_brake_press_rx_signal > limit || back_brake_press_rx_signal > limit)
     {
-        digitalWrite(pdm_board.TWELVEV_HSD1_CSENSE_ENABLE, HIGH);
+        digitalWrite(pdm_board.TWELVEV_HSD1_ENABLE, HIGH);
     }
     // Turn on device
     else
     {
-        digitalWrite(pdm_board.TWELVEV_HSD1_CSENSE_ENABLE, LOW);
+        digitalWrite(pdm_board.TWELVEV_HSD1_ENABLE, LOW);
     }
 }
 
 /**
- * @brief Control VBat Rail, 12VRail, 5VRail.
+ * @brief Turn on or off VBat Rail, 5V Rail, and 12V Rail if they are below or above the software disable limit.
  * These devices are on by default, ToggleDevice turns them on or off
  * based on the limit.
- * @param[in] pin: pin on ESP32 (all pins found in pdm.h so use pdm_board)
- * @param[in] current: current of device in Amps
- * @param[in] limit: software disable limit in Amps
+ * @param pin: pin on ESP32 (all pins found in pdm.h so use pdm_board)
+ * @param current: current of device in Amps
+ * @param limit: software disable limit in Amps
  * @return void
  */
 void ToggleDevice(uint8_t pin, float current, uint8_t limit)
@@ -134,8 +136,8 @@ void ToggleDevice(uint8_t pin, float current, uint8_t limit)
 
 /**
  * @brief Slowly turn on device to specified percentage.
- * @param[in] index: index of pin in PWM_Pins[] array
- * @param[in] percentage: power of device (needs to be value between 0 and 1, for example 0.5 is 50% power)
+ * @param index: index of pin in PWM_Pins[] array
+ * @param percentage: power of device (needs to be value between 0 and 1, for example 0.5 is 50% power)
  * @return void
  */
 void RampUp(uint8_t index, u_int8_t percentage)
@@ -164,42 +166,78 @@ void RampDown(uint8_t index)
 }
 
 /**
- * @brief Control when device is ramping up and down based on the current.
- * @param[in] pin: pin on ESP32 (all pins found in pdm.h so use pdm_board)
- * @param[in] index: index of pin in PWM_Pins[] array
- * @param[in] current: current of device in Amps
- * @param[in] limit: software disable limit in Amps
- * @param[in] percentage: power of device (needs to be value between 0 and 1, for example 0.5 is 50% power)
+ * @brief Turn on or off devices if they are below or above the software disable limit.
+ * These devices are on by default, ToggleDevice turns them on or off
+ * based on the limit.
+ * @param index: index of pin in PWM_Pins[] array
+ * @param current: current of device in Amps
+ * @param limit: software disable limit in Amps
+ * @param percentage: power of device (needs to be value between 0 and 1, for example 0.5 is 50% power)
  * @return void
  */
-void RampDevice(uint8_t pin, uint8_t index, float current, uint8_t limit, uint8_t percentage = 1)
+void RampDevice(uint8_t index, float current, uint8_t limit, float percentage = 1)
+{
+    // Turn off device.
+    if (current > limit)
+    {
+        digitalWrite(PWM_Pins[index], LOW);
+    }
+    // Turn on device
+    // Invalid percentage.
+    if (percentage < 0 || percentage > 1)
+    {
+        percentage = 1;
+    }
+    // Otherwise percentage is valid.
+    // Ramp up device to percentage.
+    RampUp(index, percentage);
+}
+
+/**
+ * @brief Control when device is ramping up and down based on the current.
+ * @param index: index of pin in PWM_Pins[] array
+ * @param current: current of device in Amps
+ * @param limit: software disable limit in Amps
+ * @param percentage: power of device (needs to be value between 0 and 1, for example 0.5 is 50% power)
+ * @return void
+ */
+// void RampDevice(uint8_t index, float current, uint8_t limit, float percentage = 1)
+// {
+//     // Valid percentage.
+//     if (percentage < 0 || percentage > 1)
+//     {
+
+//     }
+//     // Not valid percentage just set device to full power.
+//     // Ramp up to 1 or specified percentage.
+//     if (current > limit)
+//     {
+//         RampUp(index, percentage);
+//     }
+//     // Devices are off by default.
+//     else
+//     {
+//         RampDown(index);
+//     }
+
+// }
+
+/**
+ * @brief Slowly turn on all devices.
+ * @param percentage: power of device (needs to be value between 0 and 1, for example 0.5 is 50% power)
+ * @return void
+ */
+void StartUpRamp(float percentage = 1)
 {
     // Valid percentage.
-    if (percentage >= 0 && percentage <= 1)
+    if (percentage < 0 || percentage > 1)
     {
-        // Ramp up to 1 or specified percentage.
-        if (current > limit)
-        {
-            RampUp(index, percentage);
-        }
-        // Devices are off by default.
-        else
-        {
-            RampDown(index);
-        }
+        percentage = 1;
     }
-    // Not valid percentage just set device to full power.
-    else
+    // Otherwise percentage is valid.
+    for (uint8_t index = 0; index < PWM_Pins.size(); index++)
     {
-        if (current > limit)
-        {
-            RampUp(index, 1);
-        }
-        // Devices are off by default.
-        else
-        {
-            RampDown(index);
-        }
+        RampUp(index, percentage);
     }
 }
 
@@ -222,19 +260,24 @@ void ReadCurrents()
 
     // = AC_FAN_12V_Current && Enable/Disable
     air_fan_signal = pdm_board.ReadCurrent(pdm_board.AC_FAN_12V_CSENSE, 0);
-    RampDevice(pdm_board.AC_FAN_12V_CSENSE, 0, air_fan_signal, 20);
+    // RampDevice(0, air_fan_signal, 20);
+    RampDevice(0, air_fan_signal, 20);
     // = LC_FAN_12V_Current && Enable/Disable
     liquid_fan_signal = pdm_board.ReadCurrent(pdm_board.LC_FAN_12V_CSENSE, 0);
-    RampDevice(pdm_board.LC_FAN_12V_CSENSE, 1, liquid_fan_signal, 20);
+    // RampDevice(1, liquid_fan_signal, 20);
+    RampDevice(1, liquid_fan_signal, 20);
     // = LC_PUMP_12V_Current && Enable/Disable
     liquid_pump_signal = pdm_board.ReadCurrent(pdm_board.LC_PUMP_12V_CSENSE, 0);
-    RampDevice(pdm_board.LC_PUMP_12V_CSENSE, 2, liquid_pump_signal, 20);
+    // RampDevice(2, liquid_pump_signal, 20);
+    RampDevice(2, liquid_pump_signal, 20);
     // = TWELVEV_HSD1_Current && Enable/Disable
     hsd_1_signal = pdm_board.ReadCurrent(pdm_board.TWELVEV_HSD1_CSENSE, 0);
-    RampDevice(pdm_board.LC_PUMP_12V_CSENSE, 3, hsd_1_signal, 1);
+    // RampDevice(3, hsd_1_signal, 1);
+    RampDevice(3, hsd_1_signal, 1);
     // = TWELVEV_HSD2_Current && Enable/Disable
     hsd_2_signal = pdm_board.ReadCurrent(pdm_board.TWELVEV_HSD1_CSENSE, 0);
-    RampDevice(pdm_board.LC_PUMP_12V_CSENSE, 4, hsd_1_signal, 1);
+    // RampDevice(4, hsd_2_signal, 1);
+    RampDevice(4, hsd_2_signal, 1);
 }
 
 // Turn on brake lights based on the given limit (PSI), anything
@@ -257,7 +300,7 @@ void setup()
     /// PWM ///
 
     // Specify settings for each PWM instance
-    for (uint8_t index = 0; index < NUM_OF_PINS; index++)
+    for (uint8_t index = 0; index < PWM_Pins.size(); index++)
     {
         // Assigns PWM frequency of 1.0 KHz and a duty cycle of 0%, channel, 8-bit resolution (0-255 value can inputted).
         PWM_Instance[index] = new ESP32_FAST_PWM(PWM_Pins[index], frequency[index], dutyCycles[index], PWM_chan[index],
@@ -268,6 +311,10 @@ void setup()
             PWM_Instance[index]->setPWM();
         }
     }
+
+    // Turn on all devices slowly to specified percentage,
+    // must be between 0 and 1.
+    StartUpRamp(1);
 
     // Initialize CAN bus.
     can_bus.Initialize(ICAN::BaudRate::kBaud1M);
