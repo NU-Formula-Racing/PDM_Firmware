@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include "ESP32_FastPWM.h"
 #include "pdm.h"
+#include "device.h"
 #include "virtualTimer.h"
 #include <array>
 
@@ -25,20 +26,25 @@ VirtualTimerGroup read_timer;
 // Look at RampUp and RampDown functions (milliseconds to pause).
 #define PWM_INTERVAL 1
 
-// Specify all the pins that will need to controlled with PWM.
-// Not sure if all pins are PWM compatible.
+// Specify all the device pins that will need to controlled with PWM.
 std::array<uint8_t, 5> PWM_Pins = {
     pdm_board.AC_FAN_12V_ENABLE, pdm_board.LC_FAN_12V_ENABLE, pdm_board.LC_PUMP_12V_ENABLE,
     pdm_board.TWELVEV_HSD1_ENABLE, pdm_board.TWELVEV_HSD1_ENABLE};
-// uint32_t PWM_Pins[] =
+
+// Initialize device class for each device that required PWM.
+// This allows us to retry to turn on the device after it has been
+// shut off.
+Device ac_fan_12v_device;
+Device lc_fan_12v_device;
+Device lc_pump_12v_device;
+Device hsd1_device;
+Device hsd2_device;
 
 // There are 16 PWM channels from 0 to 15.
 // Not sure if it is necessary to have each pin operate on a separate channel.
 // I think its fine as long as they are the same frequency, but I put each pin on a separate channel
 // just in case.
 std::array<uint8_t, 5> PWM_chan = {0, 1, 2, 3, 4};
-
-// #define NUM_OF_PINS (sizeof(PWM_Pins) / sizeof(uint32_t))
 
 // Duty cycle basically defines the percentage a device is off vs on.
 // It is a parameter of the square wave, for example 50% duty cycle means a device
@@ -140,9 +146,11 @@ void ToggleDevice(uint8_t pin, float current, uint8_t limit)
  * @param percentage: power of device (needs to be value between 0 and 1, for example 0.5 is 50% power)
  * @return void
  */
-void RampUp(uint8_t index, u_int8_t percentage)
+void RampUp(uint8_t index, float percentage)
 {
     // Turn on device.
+    // ramp for a specified amount of time
+    // make timer and stop when criteria is met
     for (int dutyCycle = dutyCycles[index]; dutyCycle <= 255 * percentage; dutyCycle++)
     {
         PWM_Instance[index]->setPWM(PWM_Pins[index], frequency[index], dutyCycles[index]);
@@ -181,16 +189,27 @@ void RampDevice(uint8_t index, float current, uint8_t limit, float percentage = 
     if (current > limit)
     {
         digitalWrite(PWM_Pins[index], LOW);
+
+        // Restart device
+
+        // Turn on device
+        // Invalid percentage.
+        if (percentage < 0 || percentage > 1)
+        {
+            percentage = 1;
+        }
+        // Otherwise percentage is valid.
+        // Ramp up device to percentage.
+        RampUp(index, percentage);
     }
-    // Turn on device
-    // Invalid percentage.
-    if (percentage < 0 || percentage > 1)
-    {
-        percentage = 1;
-    }
-    // Otherwise percentage is valid.
-    // Ramp up device to percentage.
-    RampUp(index, percentage);
+
+    // time to restart
+    // 5 seconds stand off
+    // abstracted device class
+    // retry count
+    // tried and failed multiple times
+    // three distinct
+    // if it hasnt gone away then restart
 }
 
 /**
