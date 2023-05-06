@@ -23,8 +23,9 @@ VirtualTimerGroup read_timer;
 
 #define _PWM_LOGLEVEL_ 4
 // Time between each step of turning on and turning off a device.
-// Look at RampUp and RampDown functions (milliseconds to pause).
-#define PWM_INTERVAL 1
+// Look at RampUp function, increase DutyCycle by this specified
+// amount every time.
+#define PWM_INTERVAL 25
 
 // Specify all the device pins that will need to controlled with PWM.
 std::array<uint8_t, 5> PWM_Pins = {
@@ -39,6 +40,11 @@ Device lc_fan_12v_device;
 Device lc_pump_12v_device;
 Device hsd1_device;
 Device hsd2_device;
+
+// Array to store devices.
+std::array<Device, 5> Devices = {
+    ac_fan_12v_device, lc_fan_12v_device, lc_pump_12v_device,
+    hsd1_device, hsd2_device};
 
 // There are 16 PWM channels from 0 to 15.
 // Not sure if it is necessary to have each pin operate on a separate channel.
@@ -105,12 +111,12 @@ CANRXMessage<1> rx_message_1{can_bus, pdm_board.kCANIdFB, back_brake_press_rx_si
  */
 void ControlBrakeLight(uint8_t limit)
 {
-    // Turn off device.
+    // Turn on device.
     if (front_brake_press_rx_signal > limit || back_brake_press_rx_signal > limit)
     {
         digitalWrite(pdm_board.TWELVEV_HSD1_ENABLE, HIGH);
     }
-    // Turn on device
+    // Turn off device
     else
     {
         digitalWrite(pdm_board.TWELVEV_HSD1_ENABLE, LOW);
@@ -151,25 +157,16 @@ void RampUp(uint8_t index, float percentage)
     // Turn on device.
     // ramp for a specified amount of time
     // make timer and stop when criteria is met
-    for (int dutyCycle = dutyCycles[index]; dutyCycle <= 255 * percentage; dutyCycle++)
-    {
-        PWM_Instance[index]->setPWM(PWM_Pins[index], frequency[index], dutyCycles[index]);
-        delay(PWM_INTERVAL);
-    }
-}
+    // for (float dutyCycle = dutyCycles[index]; dutyCycle <= 255 * percentage; dutyCycle++)
+    // {
+    //     PWM_Instance[index]->setPWM(PWM_Pins[index], frequency[index], dutyCycle);
+    //     delay(PWM_INTERVAL);
+    // }
 
-/**
- * @brief Slowly turn off device.
- * @param[in] index: index of pin in PWM_Pins[] array
- * @return void
- */
-void RampDown(uint8_t index)
-{
-    // Turn off device.
-    for (int dutyCycle = dutyCycles[index]; dutyCycle >= 0; dutyCycle--)
+    // Turn on device.
+    if (dutyCycles[index] <= 255 * percentage)
     {
-        PWM_Instance[index]->setPWM(PWM_Pins[index], frequency[index], dutyCycles[index]);
-        delay(PWM_INTERVAL);
+        PWM_Instance[index]->setPWM(PWM_Pins[index], frequency[index], dutyCycles[index] + PWM_INTERVAL);
     }
 }
 
@@ -190,56 +187,47 @@ void RampDevice(uint8_t index, float current, uint8_t limit, float percentage = 
     {
         digitalWrite(PWM_Pins[index], LOW);
 
-        // Restart device
-
-        // Turn on device
-        // Invalid percentage.
-        if (percentage < 0 || percentage > 1)
-        {
-            percentage = 1;
-        }
-        // Otherwise percentage is valid.
-        // Ramp up device to percentage.
-        RampUp(index, percentage);
+        // Change the stored state and start the timer.
+        Devices[index].DeviceOff();
     }
+    // Only attempt to restart if there is no current.
+    if (current == 0)
+    {
 
-    // time to restart
-    // 5 seconds stand off
-    // abstracted device class
-    // retry count
-    // tried and failed multiple times
-    // three distinct
-    // if it hasnt gone away then restart
+        // time to restart
+        // 5 seconds stand off
+        // abstracted device class
+        // retry count
+        // tried and failed multiple times
+        // three distinct
+        // if it hasnt gone away then restart
+
+        // Restart device based on if the criteria.
+        if (Devices[index].AttemptRestart())
+        {
+            // Turn on device
+            // Invalid percentage.
+            if (percentage < 0 || percentage > 1)
+            {
+                percentage = 1;
+            }
+            // Otherwise percentage is valid.
+            // Ramp up device to percentage.
+            read_timer.AddTimer(1, RampUp(index, percentage), VirtualTimer::Type::kFiniteUse, (255 * percentage) / PWM_INTERVAL + 1);
+        }
+    }
 }
 
 /**
- * @brief Control when device is ramping up and down based on the current.
- * @param index: index of pin in PWM_Pins[] array
- * @param current: current of device in Amps
- * @param limit: software disable limit in Amps
- * @param percentage: power of device (needs to be value between 0 and 1, for example 0.5 is 50% power)
- * @return void
+ * @brief Update times for all devices that are turned off.
  */
-// void RampDevice(uint8_t index, float current, uint8_t limit, float percentage = 1)
-// {
-//     // Valid percentage.
-//     if (percentage < 0 || percentage > 1)
-//     {
-
-//     }
-//     // Not valid percentage just set device to full power.
-//     // Ramp up to 1 or specified percentage.
-//     if (current > limit)
-//     {
-//         RampUp(index, percentage);
-//     }
-//     // Devices are off by default.
-//     else
-//     {
-//         RampDown(index);
-//     }
-
-// }
+void UpdateTime()
+{
+    for (uint8_t index = 0; index < Devices.size(); index++)
+    {
+        Devices[index].UpdateTime();
+    }
+}
 
 /**
  * @brief Slowly turn on all devices.
@@ -248,15 +236,23 @@ void RampDevice(uint8_t index, float current, uint8_t limit, float percentage = 
  */
 void StartUpRamp(float percentage = 1)
 {
-    // Valid percentage.
+    // float percentage = 1;
+
+    // Invalid percentage.
     if (percentage < 0 || percentage > 1)
     {
         percentage = 1;
     }
+
     // Otherwise percentage is valid.
     for (uint8_t index = 0; index < PWM_Pins.size(); index++)
     {
-        RampUp(index, percentage);
+        // void call = []()
+        // {
+        //     RampUp(index, percentage);
+        // };
+        // void CallRampUp(){}
+        read_timer.AddTimer(1, RampUp(index, percentage), VirtualTimer::Type::kFiniteUse, (255 * percentage) / PWM_INTERVAL + 1);
     }
 }
 
@@ -338,8 +334,9 @@ void setup()
     // Initialize CAN bus.
     can_bus.Initialize(ICAN::BaudRate::kBaud1M);
 
-    // Initialize our timer(s) to read each sensor every
-    // specified amount of time (ms).
+    // Initialize our timer(s) to read each sensor.
+    // read_timer.AddTimer(100, StartUpRamp);
+    read_timer.AddTimer(100, UpdateTime);
     read_timer.AddTimer(100, ReadCurrents);
     read_timer.AddTimer(100, BrakeLight);
 }
