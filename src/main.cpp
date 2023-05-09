@@ -25,48 +25,49 @@ VirtualTimerGroup read_timer;
 // Time between each step of turning on and turning off a device.
 // Look at RampUp function, increase DutyCycle by this specified
 // amount every time.
-#define PWM_INTERVAL 25
+// #define PWM_INTERVAL 25
 
 // Specify all the device pins that will need to controlled with PWM.
 std::array<uint8_t, 5> PWM_Pins = {
     pdm_board.AC_FAN_12V_ENABLE, pdm_board.LC_FAN_12V_ENABLE, pdm_board.LC_PUMP_12V_ENABLE,
     pdm_board.TWELVEV_HSD1_ENABLE, pdm_board.TWELVEV_HSD1_ENABLE};
 
+// There are 16 PWM channels from 0 to 15.
+// Not sure if it is necessary to have each pin operate on a separate channel.
+// I think its fine as long as they are the same frequency, but I put each pin on a separate channel
+// just in case.
+std::array<uint8_t, 5> PWM_Chan = {0, 1, 2, 3, 4};
+
 // Initialize device class for each device that required PWM.
+// Constructor requires passing the pwmPin and the channel.
 // This allows us to retry to turn on the device after it has been
 // shut off.
-Device ac_fan_12v_device;
-Device lc_fan_12v_device;
-Device lc_pump_12v_device;
-Device hsd1_device;
-Device hsd2_device;
+Device ac_fan_12v_device(PWM_Pins[0], PWM_Chan[0]);
+Device lc_fan_12v_device(PWM_Pins[1], PWM_Chan[1]);
+Device lc_pump_12v_device(PWM_Pins[2], PWM_Chan[2]);
+Device hsd1_device(PWM_Pins[3], PWM_Chan[3]);
+Device hsd2_device(PWM_Pins[4], PWM_Chan[4]);
 
 // Array to store devices.
 std::array<Device, 5> Devices = {
     ac_fan_12v_device, lc_fan_12v_device, lc_pump_12v_device,
     hsd1_device, hsd2_device};
 
-// There are 16 PWM channels from 0 to 15.
-// Not sure if it is necessary to have each pin operate on a separate channel.
-// I think its fine as long as they are the same frequency, but I put each pin on a separate channel
-// just in case.
-std::array<uint8_t, 5> PWM_chan = {0, 1, 2, 3, 4};
-
 // Duty cycle basically defines the percentage a device is off vs on.
 // It is a parameter of the square wave, for example 50% duty cycle means a device
 // spends half the time on and the other half off.
 // For our use of PWM, we will chance the duty cycle from 0 to 255 or 255 to 0.
-// Increasing the duty cycle to 255 turns off a device and decreasing the duty cycle
+// Increasing the duty cycle to 255 turns on a device and decreasing the duty cycle
 // to 0 turns off a device.
 // We have a separate duty cycle for each pin because they're at different
 // states at the same time.
-std::array<float, 5> dutyCycles = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+// std::array<float, 5> dutyCycles = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
 
 // PWM Frequency is the count of PWM interval periods per second, expressed in Hertz (Hz).
 // Mathematically, the frequency is equal to the inverse of the interval period's length (PWM_Frequency = 1 / PWM_Interval_Period).
 // This is just another property of the square wave, different devices can handle different frequencies.
 // For now, we assume that all devices can operate at the same frequency.
-std::array<float, 5> frequency = {1000.0f, 1000.0f, 1000.0f, 1000.0f, 1000.0f};
+// std::array<float, 5> frequency = {1000.0f, 1000.0f, 1000.0f, 1000.0f, 1000.0f};
 
 // Max resolution is 20-bit
 // Resolution 65536 (16-bit) for lower frequencies, OK @ 1K
@@ -75,10 +76,10 @@ std::array<float, 5> frequency = {1000.0f, 1000.0f, 1000.0f, 1000.0f, 1000.0f};
 // Resolution  256  ( 8-bit)for higher frequencies, OK @ 100K, 200K
 // Resolution  128  ( 7-bit) for higher frequencies, OK @ 500K
 // With a PWM resolution of 8 we can set the duty cycle between 0 and 255..
-int PWM_resolution = 8;
+// int PWM_resolution = 8;
 
 // Create PWM instance for each pin.
-ESP32_FAST_PWM *PWM_Instance[PWM_Pins.size()];
+// ESP32_FAST_PWM *PWM_Instance[PWM_Pins.size()];
 
 /// CAN Signals ///
 CANSignal<float, 0, 8, CANTemplateConvertFloat(0.02), CANTemplateConvertFloat(0), false> v5_rail_signal{};
@@ -146,29 +147,29 @@ void ToggleDevice(uint8_t pin, float current, uint8_t limit)
     }
 }
 
-/**
- * @brief Slowly turn on device to specified percentage.
- * @param index: index of pin in PWM_Pins[] array
- * @param percentage: power of device (needs to be value between 0 and 1, for example 0.5 is 50% power)
- * @return void
- */
-void RampUp(uint8_t index, float percentage)
-{
-    // Turn on device.
-    // ramp for a specified amount of time
-    // make timer and stop when criteria is met
-    // for (float dutyCycle = dutyCycles[index]; dutyCycle <= 255 * percentage; dutyCycle++)
-    // {
-    //     PWM_Instance[index]->setPWM(PWM_Pins[index], frequency[index], dutyCycle);
-    //     delay(PWM_INTERVAL);
-    // }
+// /**
+//  * @brief Slowly turn on device to specified percentage.
+//  * @param index: index of pin in PWM_Pins[] array
+//  * @param percentage: power of device (needs to be value between 0 and 1, for example 0.5 is 50% power)
+//  * @return void
+//  */
+// void RampUp(uint8_t index, float percentage)
+// {
+//     // Turn on device.
+//     // ramp for a specified amount of time
+//     // make timer and stop when criteria is met
+//     // for (float dutyCycle = dutyCycles[index]; dutyCycle <= 255 * percentage; dutyCycle++)
+//     // {
+//     //     PWM_Instance[index]->setPWM(PWM_Pins[index], frequency[index], dutyCycle);
+//     //     delay(PWM_INTERVAL);
+//     // }
 
-    // Turn on device.
-    if (dutyCycles[index] <= 255 * percentage)
-    {
-        PWM_Instance[index]->setPWM(PWM_Pins[index], frequency[index], dutyCycles[index] + PWM_INTERVAL);
-    }
-}
+//     // Turn on device.
+//     if (dutyCycles[index] <= 255 * percentage)
+//     {
+//         PWM_Instance[index]->setPWM(PWM_Pins[index], frequency[index], dutyCycles[index] + PWM_INTERVAL);
+//     }
+// }
 
 /**
  * @brief Turn on or off devices if they are below or above the software disable limit.
@@ -213,7 +214,7 @@ void RampDevice(uint8_t index, float current, uint8_t limit, float percentage = 
             }
             // Otherwise percentage is valid.
             // Ramp up device to percentage.
-            read_timer.AddTimer(1, RampUp(index, percentage), VirtualTimer::Type::kFiniteUse, (255 * percentage) / PWM_INTERVAL + 1);
+            // read_timer.AddTimer(1, RampUp(index, percentage), VirtualTimer::Type::kFiniteUse, (255 * percentage) / PWM_INTERVAL + 1);
         }
     }
 }
@@ -252,7 +253,7 @@ void StartUpRamp(float percentage = 1)
         //     RampUp(index, percentage);
         // };
         // void CallRampUp(){}
-        read_timer.AddTimer(1, RampUp(index, percentage), VirtualTimer::Type::kFiniteUse, (255 * percentage) / PWM_INTERVAL + 1);
+        // read_timer.AddTimer(1, RampUp(index, percentage), VirtualTimer::Type::kFiniteUse, (255 * percentage) / PWM_INTERVAL + 1);
     }
 }
 
@@ -315,17 +316,17 @@ void setup()
     /// PWM ///
 
     // Specify settings for each PWM instance
-    for (uint8_t index = 0; index < PWM_Pins.size(); index++)
-    {
-        // Assigns PWM frequency of 1.0 KHz and a duty cycle of 0%, channel, 8-bit resolution (0-255 value can inputted).
-        PWM_Instance[index] = new ESP32_FAST_PWM(PWM_Pins[index], frequency[index], dutyCycles[index], PWM_chan[index],
-                                                 PWM_resolution);
+    // for (uint8_t index = 0; index < PWM_Pins.size(); index++)
+    // {
+    //     // Assigns PWM frequency of 1.0 KHz and a duty cycle of 0%, channel, 8-bit resolution (0-255 value can inputted).
+    //     PWM_Instance[index] = new ESP32_FAST_PWM(PWM_Pins[index], frequency[index], dutyCycles[index], PWM_chan[index],
+    //                                              PWM_resolution);
 
-        if (PWM_Instance[index])
-        {
-            PWM_Instance[index]->setPWM();
-        }
-    }
+    //     if (PWM_Instance[index])
+    //     {
+    //         PWM_Instance[index]->setPWM();
+    //     }
+    // }
 
     // Turn on all devices slowly to specified percentage,
     // must be between 0 and 1.
