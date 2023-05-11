@@ -22,8 +22,6 @@ Device::Device(uint8_t pwmPin, uint8_t channel)
     elapsedTime = 0;
     deviceOff = false;
 
-    // Creates PWM instance.
-    ESP32_FAST_PWM *PWM_Instance;
     // Assigns PWM parameters.
     PWM_Instance = new ESP32_FAST_PWM(pwmPin, frequency, dutyCycle, channel, pwmResolution);
 }
@@ -86,20 +84,13 @@ bool Device::AttemptRestart()
  * @param percentage: power of device (needs to be value between 0 and 1, for example 0.5 is 50% power)
  * @return void
  */
-// void RampUp(uint8_t index, float percentage)
-// {
-//     // Turn on device.
-//     // ramp for a specified amount of time
-//     // make timer and stop when criteria is met
-//     // for (float dutyCycle = dutyCycles[index]; dutyCycle <= 255 * percentage; dutyCycle++)
-//     // {
-//     //     PWM_Instance[index]->setPWM(PWM_Pins[index], frequency[index], dutyCycle);
-//     //     delay(PWM_INTERVAL);
-//     // }
+void Device::RampUp()
+{
+    // Turn on device.
+    if (dutyCycle <= 255 * percentage)
+    {
+        PWM_Instance->setPWM(PWM_PIN, frequency, dutyCycle + PWM_INTERVAL);
+    }
+}
 
-//     // Turn on device.
-//     if (dutyCycles[index] <= 255 * percentage)
-//     {
-//         PWM_Instance[index]->setPWM(PWM_Pins[index], frequency[index], dutyCycles[index] + PWM_INTERVAL);
-//     }
-// }
+// call every 100 ms

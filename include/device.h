@@ -1,3 +1,4 @@
+#include "ESP32_FastPWM.h"
 /**
  *
  * @brief Definitions and constants for each PWM device of the PDM board.
@@ -26,6 +27,9 @@ public:
 
 private:
     /// PWM specific parameters. ///
+
+    // Creates PWM instance.
+    ESP32_FAST_PWM *PWM_Instance;
 
     // Specify device pin that will need to controlled with PWM.
     uint8_t PWM_PIN;

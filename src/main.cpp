@@ -246,14 +246,9 @@ void StartUpRamp(float percentage = 1)
     }
 
     // Otherwise percentage is valid.
-    for (uint8_t index = 0; index < PWM_Pins.size(); index++)
+    for (uint8_t index = 0; index < Devices.size(); index++)
     {
-        // void call = []()
-        // {
-        //     RampUp(index, percentage);
-        // };
-        // void CallRampUp(){}
-        // read_timer.AddTimer(1, RampUp(index, percentage), VirtualTimer::Type::kFiniteUse, (255 * percentage) / PWM_INTERVAL + 1);
+        read_timer.AddTimer(100, [index](){Devices[index].RampUp();});
     }
 }
 
