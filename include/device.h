@@ -12,8 +12,10 @@ public:
      *
      * @param pwmPin: Device PWMpin that will control turning the device on or off.
      * @param channel: One of the 16 PWM channels from 0 to 15.
+     * @param percent: Percentage of power the device is running on.(needs to be value
+     * between 0 and 1, for example 0.5 is 50% power)
      */
-    Device(uint8_t pwmPin, uint8_t channel);
+    Device(uint8_t pwmPin, uint8_t channel, float percent, uint8_t pwmInterval);
 
     //// Methods ////
 
@@ -22,7 +24,7 @@ public:
 
     /// Handle Restarting Device ///
     void UpdateTime();
-    void DeviceOff();
+    void RecordTime();
     bool AttemptRestart();
 
 private:

@@ -5,22 +5,32 @@
 /**
  * @brief Constructor for setup.
  */
-Device::Device(uint8_t pwmPin, uint8_t channel)
+Device::Device(uint8_t pwmPin, uint8_t channel, float percent, uint8_t pwmInterval)
 {
     /// PWM specific parameters. ///
     PWM_PIN = pwmPin;
-    percentage = 1;
+    // Make sure percent specified is valid.
+    if (percent < 0 || percent > 1)
+    {
+        percent = 1;
+    }
+    percentage = percent;
     dutyCycle = 0.0f;
     frequency = 1000.0f;
     pwmResolution = 8;
     /// Handle Restarting Device ///
-    PWM_INTERVAL = 25;
+    // Check that pwmInterval makes sense.
+    if (pwmInterval < 1 || pwmInterval > 255)
+    {
+        pwmInterval = 50;
+    }
+    PWM_INTERVAL = pwmInterval;
     standoffTime = 5000;
     numRestarts = 3;
     currentRestarts = 0;
     startTime = 0;
     elapsedTime = 0;
-    deviceOff = false;
+    // deviceOff = false;
 
     // Assigns PWM parameters.
     PWM_Instance = new ESP32_FAST_PWM(pwmPin, frequency, dutyCycle, channel, pwmResolution);
@@ -32,19 +42,15 @@ Device::Device(uint8_t pwmPin, uint8_t channel)
  */
 void Device::UpdateTime()
 {
-    if (deviceOff)
-    {
-        elapsedTime = millis() - startTime;
-    }
+    elapsedTime = millis() - startTime;
 }
 
 /**
- * @brief Update the bool that tracks the state of the device,
- * and record when the device is turned off.
+ * @brief Record when the device is turned off.
  */
-void Device::DeviceOff()
+void Device::RecordTime()
 {
-    deviceOff = true;
+    // deviceOff = true;
     startTime = millis();
 }
 
@@ -54,10 +60,10 @@ void Device::DeviceOff()
 bool Device::AttemptRestart()
 {
     // Device is on, no restart required.
-    if (!deviceOff)
-    {
-        return false;
-    }
+    // if (!deviceOff)
+    // {
+    //     return false;
+    // }
     // Check if we have already performed the
     // specified number of restarts.
     if (currentRestarts >= numRestarts)
@@ -92,5 +98,3 @@ void Device::RampUp()
         PWM_Instance->setPWM(PWM_PIN, frequency, dutyCycle + PWM_INTERVAL);
     }
 }
-
-// call every 100 ms

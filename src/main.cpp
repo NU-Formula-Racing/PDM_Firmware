@@ -38,15 +38,23 @@ std::array<uint8_t, 5> PWM_Pins = {
 // just in case.
 std::array<uint8_t, 5> PWM_Chan = {0, 1, 2, 3, 4};
 
+// The amount the duty cycle increases each call to Device.RampUp().
+std::array<uint8_t, 5> PWM_Int = {50, 50, 50, 50, 50};
+
+// Track which device/s are trying to currently restart.
+// This is necessary to not attempt another restart when
+// the device is currently restarting.
+std::array<bool, 5> currentlyRestarting = {false, false, false, false, false};
+
 // Initialize device class for each device that required PWM.
-// Constructor requires passing the pwmPin and the channel.
+// Constructor requires passing the pwmPin, the channel, and the percentage.
 // This allows us to retry to turn on the device after it has been
 // shut off.
-Device ac_fan_12v_device(PWM_Pins[0], PWM_Chan[0]);
-Device lc_fan_12v_device(PWM_Pins[1], PWM_Chan[1]);
-Device lc_pump_12v_device(PWM_Pins[2], PWM_Chan[2]);
-Device hsd1_device(PWM_Pins[3], PWM_Chan[3]);
-Device hsd2_device(PWM_Pins[4], PWM_Chan[4]);
+Device ac_fan_12v_device(PWM_Pins[0], PWM_Chan[0], 1, PWM_Int[0]);
+Device lc_fan_12v_device(PWM_Pins[1], PWM_Chan[1], 1, PWM_Int[1]);
+Device lc_pump_12v_device(PWM_Pins[2], PWM_Chan[2], 1, PWM_Int[2]);
+Device hsd1_device(PWM_Pins[3], PWM_Chan[3], 1, PWM_Int[3]);
+Device hsd2_device(PWM_Pins[4], PWM_Chan[4], 1, PWM_Int[4]);
 
 // Array to store devices.
 std::array<Device, 5> Devices = {
@@ -102,7 +110,7 @@ CANSignal<float, 0, 16, CANTemplateConvertFloat(1), CANTemplateConvertFloat(0), 
 CANRXMessage<1> rx_message_1{can_bus, pdm_board.kCANIdFB, front_brake_press_rx_signal};
 // Receive Back Brake Pressure (psi)
 CANSignal<float, 0, 16, CANTemplateConvertFloat(1), CANTemplateConvertFloat(0), false> back_brake_press_rx_signal{};
-CANRXMessage<1> rx_message_1{can_bus, pdm_board.kCANIdFB, back_brake_press_rx_signal};
+CANRXMessage<1> rx_message_2{can_bus, pdm_board.kCANIdFB, back_brake_press_rx_signal};
 
 /**
  * @brief Control when the brake light turns on.
@@ -173,15 +181,13 @@ void ToggleDevice(uint8_t pin, float current, uint8_t limit)
 
 /**
  * @brief Turn on or off devices if they are below or above the software disable limit.
- * These devices are on by default, ToggleDevice turns them on or off
- * based on the limit.
+ * These devices are off by default.
  * @param index: index of pin in PWM_Pins[] array
  * @param current: current of device in Amps
  * @param limit: software disable limit in Amps
- * @param percentage: power of device (needs to be value between 0 and 1, for example 0.5 is 50% power)
  * @return void
  */
-void RampDevice(uint8_t index, float current, uint8_t limit, float percentage = 1)
+void RampDevice(uint8_t index, float current, uint8_t limit)
 {
     // Turn off device.
     if (current > limit)
@@ -189,10 +195,13 @@ void RampDevice(uint8_t index, float current, uint8_t limit, float percentage = 
         digitalWrite(PWM_Pins[index], LOW);
 
         // Change the stored state and start the timer.
-        Devices[index].DeviceOff();
+        Devices[index].RecordTime();
     }
-    // Only attempt to restart if there is no current.
-    if (current == 0)
+    // Only attempt to restart if there is no current and
+    // the device is not attempting to restart already.
+    // Even thought the device is performing a ramp up the
+    // current might still be 0.
+    if (current == 0 && !currentlyRestarting[index])
     {
 
         // time to restart
@@ -206,16 +215,20 @@ void RampDevice(uint8_t index, float current, uint8_t limit, float percentage = 
         // Restart device based on if the criteria.
         if (Devices[index].AttemptRestart())
         {
-            // Turn on device
-            // Invalid percentage.
-            if (percentage < 0 || percentage > 1)
-            {
-                percentage = 1;
-            }
-            // Otherwise percentage is valid.
-            // Ramp up device to percentage.
-            // read_timer.AddTimer(1, RampUp(index, percentage), VirtualTimer::Type::kFiniteUse, (255 * percentage) / PWM_INTERVAL + 1);
+            currentlyRestarting[index] = true;
+            read_timer.AddTimer(
+                100,
+                [index]()
+                { Devices[index].RampUp(); },
+                255 / PWM_Int[index] + 1);
         }
+    }
+    // If the device is actually ramping up
+    // then there will be a small increase in current
+    // so we can reset the currentlyRestarting variable.
+    if (current >= 0.5)
+    {
+        currentlyRestarting[index] = false;
     }
 }
 
@@ -232,23 +245,17 @@ void UpdateTime()
 
 /**
  * @brief Slowly turn on all devices.
- * @param percentage: power of device (needs to be value between 0 and 1, for example 0.5 is 50% power)
  * @return void
  */
-void StartUpRamp(float percentage = 1)
+void StartUpRamp()
 {
-    // float percentage = 1;
-
-    // Invalid percentage.
-    if (percentage < 0 || percentage > 1)
-    {
-        percentage = 1;
-    }
-
     // Otherwise percentage is valid.
     for (uint8_t index = 0; index < Devices.size(); index++)
     {
-        read_timer.AddTimer(100, [index](){Devices[index].RampUp();});
+        read_timer.AddTimer(
+            100, [index]()
+            { Devices[index].RampUp(); },
+            255 / PWM_Int[index] + 1);
     }
 }
 
@@ -271,23 +278,18 @@ void ReadCurrents()
 
     // = AC_FAN_12V_Current && Enable/Disable
     air_fan_signal = pdm_board.ReadCurrent(pdm_board.AC_FAN_12V_CSENSE, 0);
-    // RampDevice(0, air_fan_signal, 20);
     RampDevice(0, air_fan_signal, 20);
     // = LC_FAN_12V_Current && Enable/Disable
     liquid_fan_signal = pdm_board.ReadCurrent(pdm_board.LC_FAN_12V_CSENSE, 0);
-    // RampDevice(1, liquid_fan_signal, 20);
     RampDevice(1, liquid_fan_signal, 20);
     // = LC_PUMP_12V_Current && Enable/Disable
     liquid_pump_signal = pdm_board.ReadCurrent(pdm_board.LC_PUMP_12V_CSENSE, 0);
-    // RampDevice(2, liquid_pump_signal, 20);
     RampDevice(2, liquid_pump_signal, 20);
     // = TWELVEV_HSD1_Current && Enable/Disable
     hsd_1_signal = pdm_board.ReadCurrent(pdm_board.TWELVEV_HSD1_CSENSE, 0);
-    // RampDevice(3, hsd_1_signal, 1);
     RampDevice(3, hsd_1_signal, 1);
     // = TWELVEV_HSD2_Current && Enable/Disable
     hsd_2_signal = pdm_board.ReadCurrent(pdm_board.TWELVEV_HSD1_CSENSE, 0);
-    // RampDevice(4, hsd_2_signal, 1);
     RampDevice(4, hsd_2_signal, 1);
 }
 
@@ -323,15 +325,15 @@ void setup()
     //     }
     // }
 
-    // Turn on all devices slowly to specified percentage,
-    // must be between 0 and 1.
-    StartUpRamp(1);
+    // Turn on all devices slowly to specified percentage.
+    StartUpRamp();
+
+    // Not handling a check to see if the device is actually turning on.
 
     // Initialize CAN bus.
     can_bus.Initialize(ICAN::BaudRate::kBaud1M);
 
     // Initialize our timer(s) to read each sensor.
-    // read_timer.AddTimer(100, StartUpRamp);
     read_timer.AddTimer(100, UpdateTime);
     read_timer.AddTimer(100, ReadCurrents);
     read_timer.AddTimer(100, BrakeLight);
