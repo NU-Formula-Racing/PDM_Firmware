@@ -13,24 +13,44 @@
 ESPCAN can_bus{};
 #endif
 
-// Initialize board
+// Initialize PDM board.
 PDM pdm_board;
 
-// Structure for handling timers
+// Initialize timer to call functions at
+// specified frequencies.
 VirtualTimerGroup read_timer;
 
 /// PWM ///
 
-#define _PWM_LOGLEVEL_ 4
-// Time between each step of turning on and turning off a device.
-// Look at RampUp function, increase DutyCycle by this specified
-// amount every time.
-// #define PWM_INTERVAL 25
+// Useful Definitions
+
+// Duty Cycle:
+// Duty cycle basically defines the percentage a device is off vs on.
+// It is a parameter of the square wave, for example 50% duty cycle means a device
+// spends half the time on and the other half off.
+// For our use of PWM, we will chance the duty cycle from 0 to 255.
+// Increasing the duty cycle to 255 turns on a device and decreasing the duty cycle
+// to 0 turns off a device.
+
+// PWM Frequency:
+// PWM Frequency is the count of PWM interval periods per second, expressed in Hertz (Hz).
+// Mathematically, the frequency is equal to the inverse of the interval period's length
+// (PWM_Frequency = 1 / PWM_Interval_Period).This is just another property of the square wave, different
+// devices can handle different frequencies.
+
+// PWM Resolution :
+// Max resolution is 20-bit
+// Resolution 65536 (16-bit) for lower frequencies, OK @ 1K
+// Resolution  4096 (12-bit) for lower frequencies, OK @ 10K
+// Resolution  1024 (10-bit) for higher frequencies, OK @ 50K
+// Resolution  256  ( 8-bit)for higher frequencies, OK @ 100K, 200K
+// Resolution  128  ( 7-bit) for higher frequencies, OK @ 500K
+// With a PWM resolution of 8 we can set the duty cycle between 0 and 255.
 
 // Specify all the device pins that will need to controlled with PWM.
 std::array<uint8_t, 5> PWM_Pins = {
     pdm_board.AC_FAN_12V_ENABLE, pdm_board.LC_FAN_12V_ENABLE, pdm_board.LC_PUMP_12V_ENABLE,
-    pdm_board.TWELVEV_HSD1_ENABLE, pdm_board.TWELVEV_HSD1_ENABLE};
+    pdm_board.TWELVEV_HSD1_ENABLE, pdm_board.TWELVEV_HSD2_ENABLE};
 
 // There are 16 PWM channels from 0 to 15.
 // Not sure if it is necessary to have each pin operate on a separate channel.
@@ -38,7 +58,7 @@ std::array<uint8_t, 5> PWM_Pins = {
 // just in case.
 std::array<uint8_t, 5> PWM_Chan = {0, 1, 2, 3, 4};
 
-// The amount the duty cycle increases each call to Device.RampUp().
+// The amount the duty cycle increases with each call to Device.RampUp().
 std::array<uint8_t, 5> PWM_Int = {50, 50, 50, 50, 50};
 
 // Track which device/s are trying to currently restart.
@@ -47,9 +67,9 @@ std::array<uint8_t, 5> PWM_Int = {50, 50, 50, 50, 50};
 std::array<bool, 5> currentlyRestarting = {false, false, false, false, false};
 
 // Initialize device class for each device that required PWM.
-// Constructor requires passing the pwmPin, the channel, and the percentage.
-// This allows us to retry to turn on the device after it has been
-// shut off.
+// Constructor requires passing the pwmPin, the channel, the percentage
+// to run the device on (between 0 and 1), and the amount to increase the
+// the duty cycle by with each call to Device.RampUp().
 Device ac_fan_12v_device(PWM_Pins[0], PWM_Chan[0], 1, PWM_Int[0]);
 Device lc_fan_12v_device(PWM_Pins[1], PWM_Chan[1], 1, PWM_Int[1]);
 Device lc_pump_12v_device(PWM_Pins[2], PWM_Chan[2], 1, PWM_Int[2]);
@@ -61,35 +81,8 @@ std::array<Device, 5> Devices = {
     ac_fan_12v_device, lc_fan_12v_device, lc_pump_12v_device,
     hsd1_device, hsd2_device};
 
-// Duty cycle basically defines the percentage a device is off vs on.
-// It is a parameter of the square wave, for example 50% duty cycle means a device
-// spends half the time on and the other half off.
-// For our use of PWM, we will chance the duty cycle from 0 to 255 or 255 to 0.
-// Increasing the duty cycle to 255 turns on a device and decreasing the duty cycle
-// to 0 turns off a device.
-// We have a separate duty cycle for each pin because they're at different
-// states at the same time.
-// std::array<float, 5> dutyCycles = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
-
-// PWM Frequency is the count of PWM interval periods per second, expressed in Hertz (Hz).
-// Mathematically, the frequency is equal to the inverse of the interval period's length (PWM_Frequency = 1 / PWM_Interval_Period).
-// This is just another property of the square wave, different devices can handle different frequencies.
-// For now, we assume that all devices can operate at the same frequency.
-// std::array<float, 5> frequency = {1000.0f, 1000.0f, 1000.0f, 1000.0f, 1000.0f};
-
-// Max resolution is 20-bit
-// Resolution 65536 (16-bit) for lower frequencies, OK @ 1K
-// Resolution  4096 (12-bit) for lower frequencies, OK @ 10K
-// Resolution  1024 (10-bit) for higher frequencies, OK @ 50K
-// Resolution  256  ( 8-bit)for higher frequencies, OK @ 100K, 200K
-// Resolution  128  ( 7-bit) for higher frequencies, OK @ 500K
-// With a PWM resolution of 8 we can set the duty cycle between 0 and 255..
-// int PWM_resolution = 8;
-
-// Create PWM instance for each pin.
-// ESP32_FAST_PWM *PWM_Instance[PWM_Pins.size()];
-
 /// CAN Signals ///
+
 CANSignal<float, 0, 8, CANTemplateConvertFloat(0.02), CANTemplateConvertFloat(0), false> v5_rail_signal{};
 CANSignal<float, 8, 8, CANTemplateConvertFloat(0.02), CANTemplateConvertFloat(0), false> v12_rail_signal{};
 CANSignal<float, 16, 8, CANTemplateConvertFloat(0.02), CANTemplateConvertFloat(0), false> vbat_rail_signal{};
@@ -105,12 +98,17 @@ CANSignal<float, 32, 8, CANTemplateConvertFloat(0.02), CANTemplateConvertFloat(0
 CANTXMessage<5> tx_message_2{can_bus, pdm_board.kCANId2, 5, 100, read_timer, air_fan_signal, liquid_fan_signal, liquid_pump_signal, hsd_1_signal, hsd_2_signal};
 
 /// Brake Pressure ///
+
 // Receive Front Brake Pressure (psi)
 CANSignal<float, 0, 16, CANTemplateConvertFloat(1), CANTemplateConvertFloat(0), false> front_brake_press_rx_signal{};
 CANRXMessage<1> rx_message_1{can_bus, pdm_board.kCANIdFB, front_brake_press_rx_signal};
 // Receive Back Brake Pressure (psi)
 CANSignal<float, 0, 16, CANTemplateConvertFloat(1), CANTemplateConvertFloat(0), false> back_brake_press_rx_signal{};
 CANRXMessage<1> rx_message_2{can_bus, pdm_board.kCANIdFB, back_brake_press_rx_signal};
+
+////////////////////////////////
+
+/// Functions ///
 
 /**
  * @brief Control when the brake light turns on.
@@ -155,30 +153,6 @@ void ToggleDevice(uint8_t pin, float current, uint8_t limit)
     }
 }
 
-// /**
-//  * @brief Slowly turn on device to specified percentage.
-//  * @param index: index of pin in PWM_Pins[] array
-//  * @param percentage: power of device (needs to be value between 0 and 1, for example 0.5 is 50% power)
-//  * @return void
-//  */
-// void RampUp(uint8_t index, float percentage)
-// {
-//     // Turn on device.
-//     // ramp for a specified amount of time
-//     // make timer and stop when criteria is met
-//     // for (float dutyCycle = dutyCycles[index]; dutyCycle <= 255 * percentage; dutyCycle++)
-//     // {
-//     //     PWM_Instance[index]->setPWM(PWM_Pins[index], frequency[index], dutyCycle);
-//     //     delay(PWM_INTERVAL);
-//     // }
-
-//     // Turn on device.
-//     if (dutyCycles[index] <= 255 * percentage)
-//     {
-//         PWM_Instance[index]->setPWM(PWM_Pins[index], frequency[index], dutyCycles[index] + PWM_INTERVAL);
-//     }
-// }
-
 /**
  * @brief Turn on or off devices if they are below or above the software disable limit.
  * These devices are off by default.
@@ -203,14 +177,8 @@ void RampDevice(uint8_t index, float current, uint8_t limit)
     // current might still be 0.
     if (current == 0 && !currentlyRestarting[index])
     {
-
-        // time to restart
-        // 5 seconds stand off
-        // abstracted device class
-        // retry count
-        // tried and failed multiple times
-        // three distinct
-        // if it hasnt gone away then restart
+        // Set device state to off to start the timer.
+        Devices[index].SetDeviceOff(true);
 
         // Restart device based on if the criteria.
         if (Devices[index].AttemptRestart())
@@ -229,11 +197,13 @@ void RampDevice(uint8_t index, float current, uint8_t limit)
     if (current >= 0.5)
     {
         currentlyRestarting[index] = false;
+        Devices[index].SetDeviceOff(false);
     }
 }
 
 /**
  * @brief Update times for all devices that are turned off.
+ * @return void
  */
 void UpdateTime()
 {
@@ -259,9 +229,17 @@ void StartUpRamp()
     }
 }
 
-// Read currents.
+/**
+ * @brief Read currents and turn on/off devices.
+ * @return void
+ */
 void ReadCurrents()
 {
+    // TODO: Check if v5 rail, v12 rail, and vbat rail turn off
+    // with the specified pin.
+    // I think its wrong because its a CSense pin but I doubt its
+    // one of the enable pins.
+
     //  = FIVEV_Current && Enable/Disable
     v5_rail_signal = pdm_board.ReadCurrent(pdm_board.FIVEV_CSENSE, 0);
     ToggleDevice(pdm_board.FIVEV_CSENSE, v5_rail_signal, 5);
@@ -293,14 +271,16 @@ void ReadCurrents()
     RampDevice(4, hsd_2_signal, 1);
 }
 
-// Turn on brake lights based on the given limit (PSI), anything
-// greater than the value will cause the brake lights to turn on.
+/**
+ * @brief Turn on brake lights based on the given limit (PSI), anything
+ * greater than the value will cause the brake lights to turn on
+ * otherwise the brake lights will turn off. This function created because
+ * of the ways that timers are initialized.
+ */
 void BrakeLight()
 {
     ControlBrakeLight(100);
 }
-
-//  turn on and off the brake light by reading brake pressure off CAN? I think it's HSD1
 
 void setup()
 {
@@ -310,30 +290,13 @@ void setup()
     Serial.begin(9600);
 #endif
 
-    /// PWM ///
-
-    // Specify settings for each PWM instance
-    // for (uint8_t index = 0; index < PWM_Pins.size(); index++)
-    // {
-    //     // Assigns PWM frequency of 1.0 KHz and a duty cycle of 0%, channel, 8-bit resolution (0-255 value can inputted).
-    //     PWM_Instance[index] = new ESP32_FAST_PWM(PWM_Pins[index], frequency[index], dutyCycles[index], PWM_chan[index],
-    //                                              PWM_resolution);
-
-    //     if (PWM_Instance[index])
-    //     {
-    //         PWM_Instance[index]->setPWM();
-    //     }
-    // }
-
-    // Turn on all devices slowly to specified percentage.
+    // Turn on all devices.
     StartUpRamp();
-
-    // Not handling a check to see if the device is actually turning on.
 
     // Initialize CAN bus.
     can_bus.Initialize(ICAN::BaudRate::kBaud1M);
 
-    // Initialize our timer(s) to read each sensor.
+    // Initialize our timers.
     read_timer.AddTimer(100, UpdateTime);
     read_timer.AddTimer(100, ReadCurrents);
     read_timer.AddTimer(100, BrakeLight);

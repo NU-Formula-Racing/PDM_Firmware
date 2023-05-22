@@ -27,6 +27,8 @@ public:
     void RecordTime();
     bool AttemptRestart();
 
+    void SetDeviceOff(bool state);
+
 private:
     /// PWM specific parameters. ///
 

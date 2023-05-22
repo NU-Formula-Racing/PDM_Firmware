@@ -30,7 +30,7 @@ Device::Device(uint8_t pwmPin, uint8_t channel, float percent, uint8_t pwmInterv
     currentRestarts = 0;
     startTime = 0;
     elapsedTime = 0;
-    // deviceOff = false;
+    deviceOff = false;
 
     // Assigns PWM parameters.
     PWM_Instance = new ESP32_FAST_PWM(pwmPin, frequency, dutyCycle, channel, pwmResolution);
@@ -42,7 +42,10 @@ Device::Device(uint8_t pwmPin, uint8_t channel, float percent, uint8_t pwmInterv
  */
 void Device::UpdateTime()
 {
-    elapsedTime = millis() - startTime;
+    if (deviceOff)
+    {
+        elapsedTime = millis() - startTime;
+    }
 }
 
 /**
@@ -50,7 +53,7 @@ void Device::UpdateTime()
  */
 void Device::RecordTime()
 {
-    // deviceOff = true;
+    deviceOff = true;
     startTime = millis();
 }
 
@@ -60,10 +63,10 @@ void Device::RecordTime()
 bool Device::AttemptRestart()
 {
     // Device is on, no restart required.
-    // if (!deviceOff)
-    // {
-    //     return false;
-    // }
+    if (!deviceOff)
+    {
+        return false;
+    }
     // Check if we have already performed the
     // specified number of restarts.
     if (currentRestarts >= numRestarts)
@@ -97,4 +100,13 @@ void Device::RampUp()
     {
         PWM_Instance->setPWM(PWM_PIN, frequency, dutyCycle + PWM_INTERVAL);
     }
+}
+
+/**
+ * @brief Change the tracking state of a device.
+ * @param state: new tracking state
+ */
+void Device::SetDeviceOff(bool state)
+{
+    deviceOff = state;
 }
