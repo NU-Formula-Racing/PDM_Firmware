@@ -38,7 +38,7 @@ Device::Device(uint8_t pwmPin, uint8_t channel, float percent, uint8_t pwmInterv
 
 /**
  * @brief Update the time since the device has last attempted a
- * restart.
+ * restart if the device is off.
  */
 void Device::UpdateTime()
 {
@@ -58,7 +58,8 @@ void Device::RecordTime()
 }
 
 /**
- * @brief Returns boolean to attempt a restart.
+ * @brief Utilized in deciding when to actually attempt a restart.
+ * @return Returns boolean of whether or not to attempt a restart.
  */
 bool Device::AttemptRestart()
 {
@@ -91,7 +92,6 @@ bool Device::AttemptRestart()
  * @brief Slowly turn on device to specified percentage.
  * @param index: index of pin in PWM_Pins[] array
  * @param percentage: power of device (needs to be value between 0 and 1, for example 0.5 is 50% power)
- * @return void
  */
 void Device::RampUp()
 {
