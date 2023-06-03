@@ -18,8 +18,9 @@ public:
     const uint16_t kCANId1{0x500};
     const uint16_t kCANId2{0x501};
     // Brake Pressure
-    const uint16_t kCANIdFB{0x410};
-    const uint16_t kCANIdBB{0x411};
+    const uint16_t kCANIdB{0x410};
+    // Brake Percentage
+    const uint16_t kCANIdP{0x300};
 
     /// Pins ///
 

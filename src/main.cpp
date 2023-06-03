@@ -63,7 +63,7 @@ std::array<uint8_t, 5> PWM_Int = {50, 50, 50, 50, 50};
 
 // Track which device/s are trying to currently restart.
 // This is necessary to not attempt another restart when
-// the device is currently restarting.
+// the device is already restarting.
 std::array<bool, 5> currentlyRestarting = {false, false, false, false, false};
 
 // Initialize device class for each device that required PWM.
@@ -101,10 +101,13 @@ CANTXMessage<5> tx_message_2{can_bus, pdm_board.kCANId2, 5, 100, read_timer, air
 
 // Receive Front Brake Pressure (psi)
 CANSignal<float, 0, 16, CANTemplateConvertFloat(1), CANTemplateConvertFloat(0), false> front_brake_press_rx_signal{};
-CANRXMessage<1> rx_message_1{can_bus, pdm_board.kCANIdFB, front_brake_press_rx_signal};
 // Receive Back Brake Pressure (psi)
-CANSignal<float, 0, 16, CANTemplateConvertFloat(1), CANTemplateConvertFloat(0), false> back_brake_press_rx_signal{};
-CANRXMessage<1> rx_message_2{can_bus, pdm_board.kCANIdFB, back_brake_press_rx_signal};
+CANSignal<float, 16, 16, CANTemplateConvertFloat(1), CANTemplateConvertFloat(0), false> back_brake_press_rx_signal{};
+CANRXMessage<2> rx_message_1{can_bus, pdm_board.kCANIdB, front_brake_press_rx_signal, back_brake_press_rx_signal};
+
+// Brake Percentage
+CANSignal<uint8_t, 8, 8, CANTemplateConvertFloat(1), CANTemplateConvertFloat(0), false> brake_percentage_rx_signal{};
+CANRXMessage<1> rx_message_2{can_bus, pdm_board.kCANIdP, brake_percentage_rx_signal};
 
 ////////////////////////////////
 
@@ -112,14 +115,13 @@ CANRXMessage<1> rx_message_2{can_bus, pdm_board.kCANIdFB, back_brake_press_rx_si
 
 /**
  * @brief Control when the brake light turns on.
- * The brake light is in PSI units and it can range from 0 to 3000 PSI.
- * @param[in] limit: Pressure value (PSI) to turn on brake light.
+ * The brake pressure is in PSI units and it can range from 0 to 3000 PSI.
  * @return void
  */
-void ControlBrakeLight(uint8_t limit)
+void ControlBrakeLight()
 {
     // Turn on device.
-    if (front_brake_press_rx_signal > limit || back_brake_press_rx_signal > limit)
+    if (front_brake_press_rx_signal > 50 || back_brake_press_rx_signal > 300 || brake_percentage_rx_signal > 5)
     {
         digitalWrite(pdm_board.TWELVEV_HSD1_ENABLE, HIGH);
     }
@@ -257,6 +259,11 @@ void ReadCurrents()
     // = AC_FAN_12V_Current && Enable/Disable
     air_fan_signal = pdm_board.ReadCurrent(pdm_board.AC_FAN_12V_CSENSE, 0);
     RampDevice(0, air_fan_signal, 20);
+
+    Serial.println("AC FAN 12 V:");
+    Serial.println(air_fan_signal);
+    Serial.println("\n");
+
     // = LC_FAN_12V_Current && Enable/Disable
     liquid_fan_signal = pdm_board.ReadCurrent(pdm_board.LC_FAN_12V_CSENSE, 0);
     RampDevice(1, liquid_fan_signal, 20);
@@ -269,17 +276,6 @@ void ReadCurrents()
     // = TWELVEV_HSD2_Current && Enable/Disable
     hsd_2_signal = pdm_board.ReadCurrent(pdm_board.TWELVEV_HSD1_CSENSE, 0);
     RampDevice(4, hsd_2_signal, 1);
-}
-
-/**
- * @brief Turn on brake lights based on the given limit (PSI), anything
- * greater than the value will cause the brake lights to turn on
- * otherwise the brake lights will turn off. This function created because
- * of the ways that timers are initialized.
- */
-void BrakeLight()
-{
-    ControlBrakeLight(100);
 }
 
 void setup()
@@ -299,11 +295,12 @@ void setup()
     // Initialize our timers.
     read_timer.AddTimer(100, UpdateTime);
     read_timer.AddTimer(100, ReadCurrents);
-    read_timer.AddTimer(100, BrakeLight);
+    read_timer.AddTimer(100, ControlBrakeLight);
 }
 
 void loop()
 {
     can_bus.Tick();
     read_timer.Tick(millis());
+    // digitalWrite(pdm_board.AC_FAN_12V_ENABLE, LOW);
 }
