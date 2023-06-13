@@ -9,21 +9,30 @@ PDM::PDM()
     // Enable interrupts.
     // sei();
     // Specify both pins as an input.
-    pinMode(FIVEV_CSENSE, INPUT);
-    pinMode(TWELVEV_CSENSE, INPUT);
-    pinMode(VBAT_RAIL_CSENSE, INPUT);
-    pinMode(AC_FAN_12V_CSENSE, INPUT);
-    pinMode(LC_FAN_12V_CSENSE, INPUT);
-    pinMode(LC_PUMP_12V_CSENSE, INPUT);
-    pinMode(TWELVEV_HSD1_CSENSE, INPUT);
-    pinMode(TWELVEV_HSD2_CSENSE, INPUT);
-    pinMode(VBAT_CSENSE, INPUT);
-    pinMode(VBAT_VSENSE, INPUT);
+    // pinMode(FIVEV_CSENSE, INPUT);
+    // pinMode(TWELVEV_CSENSE, INPUT);
+    // pinMode(VBAT_RAIL_CSENSE, INPUT);
+    // pinMode(AC_FAN_12V_CSENSE, INPUT);
+    // pinMode(LC_FAN_12V_CSENSE, INPUT);
+    // pinMode(LC_PUMP_12V_CSENSE, INPUT);
+    // pinMode(TWELVEV_HSD1_CSENSE, INPUT);
+    // pinMode(TWELVEV_HSD2_CSENSE, INPUT);
+    // pinMode(VBAT_CSENSE, INPUT);
+    // pinMode(VBAT_VSENSE, INPUT);
     pinMode(AC_FAN_12V_ENABLE, OUTPUT);
     pinMode(LC_FAN_12V_ENABLE, OUTPUT);
     pinMode(LC_PUMP_12V_ENABLE, OUTPUT);
     pinMode(TWELVEV_HSD1_ENABLE, OUTPUT);
-    pinMode(TWELVEV_HSD2_ENABLE, OUTPUT);
+    // pinMode(TWELVEV_HSD2_ENABLE, OUTPUT);
+    pinMode(FIVEV_ENABLE, OUTPUT);
+    pinMode(KEEP_HIGH_PIN, OUTPUT);
+    pinMode(VBAT_RAIL_ENABLE, OUTPUT);
+    
+    digitalWrite(AC_FAN_12V_ENABLE, HIGH);
+    digitalWrite(TWELVEV_HSD1_ENABLE, HIGH);
+    digitalWrite(FIVEV_ENABLE, HIGH);
+    digitalWrite(KEEP_HIGH_PIN, HIGH);
+    digitalWrite(VBAT_RAIL_ENABLE, HIGH);
 }
 
 /**

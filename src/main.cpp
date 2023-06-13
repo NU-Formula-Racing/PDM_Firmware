@@ -48,54 +48,54 @@ VirtualTimerGroup read_timer;
 // With a PWM resolution of 8 we can set the duty cycle between 0 and 255.
 
 // Specify all the device pins that will need to controlled with PWM.
-std::array<uint8_t, 5> PWM_Pins = {
-    pdm_board.AC_FAN_12V_ENABLE, pdm_board.LC_FAN_12V_ENABLE, pdm_board.LC_PUMP_12V_ENABLE,
-    pdm_board.TWELVEV_HSD1_ENABLE, pdm_board.TWELVEV_HSD2_ENABLE};
+std::array<uint8_t, 2> PWM_Pins = {
+    // pdm_board.AC_FAN_12V_ENABLE, pdm_board.LC_FAN_12V_ENABLE, pdm_board.LC_PUMP_12V_ENABLE,
+    // pdm_board.TWELVEV_HSD1_ENABLE, pdm_board.TWELVEV_HSD2_ENABLE};
+    pdm_board.LC_FAN_12V_ENABLE, pdm_board.LC_PUMP_12V_ENABLE};
 
 // There are 16 PWM channels from 0 to 15.
 // Not sure if it is necessary to have each pin operate on a separate channel.
 // I think its fine as long as they are the same frequency, but I put each pin on a separate channel
 // just in case.
-std::array<uint8_t, 5> PWM_Chan = {0, 1, 2, 3, 4};
+std::array<uint8_t, 2> PWM_Chan = {0, 1};
 
 // The amount the duty cycle increases with each call to Device.RampUp().
-std::array<uint8_t, 5> PWM_Int = {50, 50, 50, 50, 50};
+std::array<uint8_t, 2> PWM_Int = {50, 50};
 
 // Track which device/s are trying to currently restart.
 // This is necessary to not attempt another restart when
 // the device is already restarting.
-std::array<bool, 5> currentlyRestarting = {false, false, false, false, false};
+std::array<bool, 2> currentlyRestarting = {false, false};
 
 // Initialize device class for each device that required PWM.
 // Constructor requires passing the pwmPin, the channel, the percentage
 // to run the device on (between 0 and 1), and the amount to increase the
 // the duty cycle by with each call to Device.RampUp().
-Device ac_fan_12v_device(PWM_Pins[0], PWM_Chan[0], 1, PWM_Int[0]);
-Device lc_fan_12v_device(PWM_Pins[1], PWM_Chan[1], 1, PWM_Int[1]);
-Device lc_pump_12v_device(PWM_Pins[2], PWM_Chan[2], 1, PWM_Int[2]);
-Device hsd1_device(PWM_Pins[3], PWM_Chan[3], 1, PWM_Int[3]);
-Device hsd2_device(PWM_Pins[4], PWM_Chan[4], 1, PWM_Int[4]);
+// Device ac_fan_12v_device(PWM_Pins[0], PWM_Chan[0], 1, PWM_Int[0]);
+Device lc_fan_12v_device(PWM_Pins[0], PWM_Chan[0], 1, PWM_Int[0]);
+Device lc_pump_12v_device(PWM_Pins[1], PWM_Chan[1], 1, PWM_Int[1]);
+// Device hsd1_device(PWM_Pins[3], PWM_Chan[3], 1, PWM_Int[3]);
+// Device hsd2_device(PWM_Pins[4], PWM_Chan[4], 1, PWM_Int[4]);
 
 // Array to store devices.
-std::array<Device, 5> Devices = {
-    ac_fan_12v_device, lc_fan_12v_device, lc_pump_12v_device,
-    hsd1_device, hsd2_device};
+std::array<Device, 2> Devices = {
+    lc_fan_12v_device, lc_pump_12v_device};
 
 /// CAN Signals ///
 
-CANSignal<float, 0, 8, CANTemplateConvertFloat(0.02), CANTemplateConvertFloat(0), false> v5_rail_signal{};
-CANSignal<float, 8, 8, CANTemplateConvertFloat(0.02), CANTemplateConvertFloat(0), false> v12_rail_signal{};
-CANSignal<float, 16, 8, CANTemplateConvertFloat(0.02), CANTemplateConvertFloat(0), false> vbat_rail_signal{};
-CANSignal<float, 24, 16, CANTemplateConvertFloat(0.002), CANTemplateConvertFloat(0), true> vbat_input_current_signal{};
-CANSignal<float, 32, 8, CANTemplateConvertFloat(0.05), CANTemplateConvertFloat(10), false> vbat_input_voltage_signal{};
-CANTXMessage<5> tx_message_1{can_bus, pdm_board.kCANId1, 6, 100, read_timer, v5_rail_signal, v12_rail_signal, vbat_rail_signal, vbat_input_current_signal, vbat_input_voltage_signal};
+// CANSignal<float, 0, 8, CANTemplateConvertFloat(0.02), CANTemplateConvertFloat(0), false> v5_rail_signal{};
+// CANSignal<float, 8, 8, CANTemplateConvertFloat(0.02), CANTemplateConvertFloat(0), false> v12_rail_signal{};
+// CANSignal<float, 16, 8, CANTemplateConvertFloat(0.02), CANTemplateConvertFloat(0), false> vbat_rail_signal{};
+// CANSignal<float, 24, 16, CANTemplateConvertFloat(0.002), CANTemplateConvertFloat(0), true> vbat_input_current_signal{};
+// CANSignal<float, 32, 8, CANTemplateConvertFloat(0.05), CANTemplateConvertFloat(10), false> vbat_input_voltage_signal{};
+// CANTXMessage<5> tx_message_1{can_bus, pdm_board.kCANId1, 6, 100, read_timer, v5_rail_signal, v12_rail_signal, vbat_rail_signal, vbat_input_current_signal, vbat_input_voltage_signal};
 
-CANSignal<float, 0, 8, CANTemplateConvertFloat(0.1), CANTemplateConvertFloat(0), false> air_fan_signal{};
-CANSignal<float, 8, 8, CANTemplateConvertFloat(0.1), CANTemplateConvertFloat(0), false> liquid_fan_signal{};
-CANSignal<float, 16, 8, CANTemplateConvertFloat(0.1), CANTemplateConvertFloat(0), false> liquid_pump_signal{};
-CANSignal<float, 24, 8, CANTemplateConvertFloat(0.02), CANTemplateConvertFloat(0), false> hsd_1_signal{};
-CANSignal<float, 32, 8, CANTemplateConvertFloat(0.02), CANTemplateConvertFloat(0), false> hsd_2_signal{};
-CANTXMessage<5> tx_message_2{can_bus, pdm_board.kCANId2, 5, 100, read_timer, air_fan_signal, liquid_fan_signal, liquid_pump_signal, hsd_1_signal, hsd_2_signal};
+// CANSignal<float, 0, 8, CANTemplateConvertFloat(0.1), CANTemplateConvertFloat(0), false> air_fan_signal{};
+// CANSignal<float, 8, 8, CANTemplateConvertFloat(0.1), CANTemplateConvertFloat(0), false> liquid_fan_signal{};
+// CANSignal<float, 16, 8, CANTemplateConvertFloat(0.1), CANTemplateConvertFloat(0), false> liquid_pump_signal{};
+// CANSignal<float, 24, 8, CANTemplateConvertFloat(0.02), CANTemplateConvertFloat(0), false> hsd_1_signal{};
+// CANSignal<float, 32, 8, CANTemplateConvertFloat(0.02), CANTemplateConvertFloat(0), false> hsd_2_signal{};
+// CANTXMessage<5> tx_message_2{can_bus, pdm_board.kCANId2, 5, 100, read_timer, air_fan_signal, liquid_fan_signal, liquid_pump_signal, hsd_1_signal, hsd_2_signal};
 
 /// Brake Pressure ///
 
@@ -235,48 +235,48 @@ void StartUpRamp()
  * @brief Read currents and turn on/off devices.
  * @return void
  */
-void ReadCurrents()
-{
-    // TODO: Check if v5 rail, v12 rail, and vbat rail turn off
-    // with the specified pin.
-    // I think its wrong because its a CSense pin but I doubt its
-    // one of the enable pins.
+// void ReadCurrents()
+// {
+//     // TODO: Check if v5 rail, v12 rail, and vbat rail turn off
+//     // with the specified pin.
+//     // I think its wrong because its a CSense pin but I doubt its
+//     // one of the enable pins.
 
-    //  = FIVEV_Current && Enable/Disable
-    v5_rail_signal = pdm_board.ReadCurrent(pdm_board.FIVEV_CSENSE, 0);
-    ToggleDevice(pdm_board.FIVEV_CSENSE, v5_rail_signal, 5);
-    // = TWELVEV_Current && Enable/Disable
-    v12_rail_signal = pdm_board.ReadCurrent(pdm_board.TWELVEV_CSENSE, 0);
-    ToggleDevice(pdm_board.TWELVEV_CSENSE, v12_rail_signal, 5);
-    // = VBAT_RAIL_Current && Enable/Disable
-    vbat_rail_signal = pdm_board.ReadCurrent(pdm_board.VBAT_RAIL_CSENSE, 0);
-    ToggleDevice(pdm_board.VBAT_RAIL_CSENSE, vbat_rail_signal, 5);
-    // = VBAT_Current
-    vbat_input_current_signal = pdm_board.ReadCurrent(pdm_board.VBAT_CSENSE, 1);
-    // = VBAT_Voltage
-    vbat_input_voltage_signal = pdm_board.ReadVoltage(pdm_board.VBAT_VSENSE);
+//     //  = FIVEV_Current && Enable/Disable
+//     v5_rail_signal = pdm_board.ReadCurrent(pdm_board.FIVEV_CSENSE, 0);
+//     ToggleDevice(pdm_board.FIVEV_CSENSE, v5_rail_signal, 5);
+//     // = TWELVEV_Current && Enable/Disable
+//     v12_rail_signal = pdm_board.ReadCurrent(pdm_board.TWELVEV_CSENSE, 0);
+//     ToggleDevice(pdm_board.TWELVEV_CSENSE, v12_rail_signal, 5);
+//     // = VBAT_RAIL_Current && Enable/Disable
+//     vbat_rail_signal = pdm_board.ReadCurrent(pdm_board.VBAT_RAIL_CSENSE, 0);
+//     ToggleDevice(pdm_board.VBAT_RAIL_CSENSE, vbat_rail_signal, 5);
+//     // = VBAT_Current
+//     vbat_input_current_signal = pdm_board.ReadCurrent(pdm_board.VBAT_CSENSE, 1);
+//     // = VBAT_Voltage
+//     vbat_input_voltage_signal = pdm_board.ReadVoltage(pdm_board.VBAT_VSENSE);
 
-    // = AC_FAN_12V_Current && Enable/Disable
-    air_fan_signal = pdm_board.ReadCurrent(pdm_board.AC_FAN_12V_CSENSE, 0);
-    RampDevice(0, air_fan_signal, 20);
+//     // = AC_FAN_12V_Current && Enable/Disable
+//     air_fan_signal = pdm_board.ReadCurrent(pdm_board.AC_FAN_12V_CSENSE, 0);
+//     RampDevice(0, air_fan_signal, 20);
 
-    Serial.println("AC FAN 12 V:");
-    Serial.println(air_fan_signal);
-    Serial.println("\n");
+//     Serial.println("AC FAN 12 V:");
+//     Serial.println(air_fan_signal);
+//     Serial.println("\n");
 
-    // = LC_FAN_12V_Current && Enable/Disable
-    liquid_fan_signal = pdm_board.ReadCurrent(pdm_board.LC_FAN_12V_CSENSE, 0);
-    RampDevice(1, liquid_fan_signal, 20);
-    // = LC_PUMP_12V_Current && Enable/Disable
-    liquid_pump_signal = pdm_board.ReadCurrent(pdm_board.LC_PUMP_12V_CSENSE, 0);
-    RampDevice(2, liquid_pump_signal, 20);
-    // = TWELVEV_HSD1_Current && Enable/Disable
-    hsd_1_signal = pdm_board.ReadCurrent(pdm_board.TWELVEV_HSD1_CSENSE, 0);
-    RampDevice(3, hsd_1_signal, 1);
-    // = TWELVEV_HSD2_Current && Enable/Disable
-    hsd_2_signal = pdm_board.ReadCurrent(pdm_board.TWELVEV_HSD1_CSENSE, 0);
-    RampDevice(4, hsd_2_signal, 1);
-}
+//     // = LC_FAN_12V_Current && Enable/Disable
+//     liquid_fan_signal = pdm_board.ReadCurrent(pdm_board.LC_FAN_12V_CSENSE, 0);
+//     RampDevice(1, liquid_fan_signal, 20);
+//     // = LC_PUMP_12V_Current && Enable/Disable
+//     liquid_pump_signal = pdm_board.ReadCurrent(pdm_board.LC_PUMP_12V_CSENSE, 0);
+//     RampDevice(2, liquid_pump_signal, 20);
+//     // = TWELVEV_HSD1_Current && Enable/Disable
+//     hsd_1_signal = pdm_board.ReadCurrent(pdm_board.TWELVEV_HSD1_CSENSE, 0);
+//     RampDevice(3, hsd_1_signal, 1);
+//     // = TWELVEV_HSD2_Current && Enable/Disable
+//     hsd_2_signal = pdm_board.ReadCurrent(pdm_board.TWELVEV_HSD1_CSENSE, 0);
+//     RampDevice(4, hsd_2_signal, 1);
+// }
 
 void setup()
 {
@@ -294,7 +294,7 @@ void setup()
 
     // Initialize our timers.
     read_timer.AddTimer(100, UpdateTime);
-    read_timer.AddTimer(100, ReadCurrents);
+    // read_timer.AddTimer(100, ReadCurrents);
     read_timer.AddTimer(100, ControlBrakeLight);
 }
 
