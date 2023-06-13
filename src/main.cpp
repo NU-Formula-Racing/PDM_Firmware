@@ -49,8 +49,6 @@ VirtualTimerGroup read_timer;
 
 // Specify all the device pins that will need to controlled with PWM.
 std::array<uint8_t, 2> PWM_Pins = {
-    // pdm_board.AC_FAN_12V_ENABLE, pdm_board.LC_FAN_12V_ENABLE, pdm_board.LC_PUMP_12V_ENABLE,
-    // pdm_board.TWELVEV_HSD1_ENABLE, pdm_board.TWELVEV_HSD2_ENABLE};
     pdm_board.LC_FAN_12V_ENABLE, pdm_board.LC_PUMP_12V_ENABLE};
 
 // There are 16 PWM channels from 0 to 15.
@@ -71,31 +69,14 @@ std::array<bool, 2> currentlyRestarting = {false, false};
 // Constructor requires passing the pwmPin, the channel, the percentage
 // to run the device on (between 0 and 1), and the amount to increase the
 // the duty cycle by with each call to Device.RampUp().
-// Device ac_fan_12v_device(PWM_Pins[0], PWM_Chan[0], 1, PWM_Int[0]);
 Device lc_fan_12v_device(PWM_Pins[0], PWM_Chan[0], 1, PWM_Int[0]);
 Device lc_pump_12v_device(PWM_Pins[1], PWM_Chan[1], 1, PWM_Int[1]);
-// Device hsd1_device(PWM_Pins[3], PWM_Chan[3], 1, PWM_Int[3]);
-// Device hsd2_device(PWM_Pins[4], PWM_Chan[4], 1, PWM_Int[4]);
 
 // Array to store devices.
 std::array<Device, 2> Devices = {
     lc_fan_12v_device, lc_pump_12v_device};
 
 /// CAN Signals ///
-
-// CANSignal<float, 0, 8, CANTemplateConvertFloat(0.02), CANTemplateConvertFloat(0), false> v5_rail_signal{};
-// CANSignal<float, 8, 8, CANTemplateConvertFloat(0.02), CANTemplateConvertFloat(0), false> v12_rail_signal{};
-// CANSignal<float, 16, 8, CANTemplateConvertFloat(0.02), CANTemplateConvertFloat(0), false> vbat_rail_signal{};
-// CANSignal<float, 24, 16, CANTemplateConvertFloat(0.002), CANTemplateConvertFloat(0), true> vbat_input_current_signal{};
-// CANSignal<float, 32, 8, CANTemplateConvertFloat(0.05), CANTemplateConvertFloat(10), false> vbat_input_voltage_signal{};
-// CANTXMessage<5> tx_message_1{can_bus, pdm_board.kCANId1, 6, 100, read_timer, v5_rail_signal, v12_rail_signal, vbat_rail_signal, vbat_input_current_signal, vbat_input_voltage_signal};
-
-// CANSignal<float, 0, 8, CANTemplateConvertFloat(0.1), CANTemplateConvertFloat(0), false> air_fan_signal{};
-// CANSignal<float, 8, 8, CANTemplateConvertFloat(0.1), CANTemplateConvertFloat(0), false> liquid_fan_signal{};
-// CANSignal<float, 16, 8, CANTemplateConvertFloat(0.1), CANTemplateConvertFloat(0), false> liquid_pump_signal{};
-// CANSignal<float, 24, 8, CANTemplateConvertFloat(0.02), CANTemplateConvertFloat(0), false> hsd_1_signal{};
-// CANSignal<float, 32, 8, CANTemplateConvertFloat(0.02), CANTemplateConvertFloat(0), false> hsd_2_signal{};
-// CANTXMessage<5> tx_message_2{can_bus, pdm_board.kCANId2, 5, 100, read_timer, air_fan_signal, liquid_fan_signal, liquid_pump_signal, hsd_1_signal, hsd_2_signal};
 
 /// Brake Pressure ///
 
@@ -133,89 +114,6 @@ void ControlBrakeLight()
 }
 
 /**
- * @brief Turn on or off VBat Rail, 5V Rail, and 12V Rail if they are below or above the software disable limit.
- * These devices are on by default, ToggleDevice turns them on or off
- * based on the limit.
- * @param pin: pin on ESP32 (all pins found in pdm.h so use pdm_board)
- * @param current: current of device in Amps
- * @param limit: software disable limit in Amps
- * @return void
- */
-void ToggleDevice(uint8_t pin, float current, uint8_t limit)
-{
-    // Turn off device.
-    if (current > limit)
-    {
-        digitalWrite(pin, LOW);
-    }
-    // Turn on device
-    else
-    {
-        digitalWrite(pin, HIGH);
-    }
-}
-
-/**
- * @brief Turn on or off devices if they are below or above the software disable limit.
- * These devices are off by default.
- * @param index: index of pin in PWM_Pins[] array
- * @param current: current of device in Amps
- * @param limit: software disable limit in Amps
- * @return void
- */
-void RampDevice(uint8_t index, float current, uint8_t limit)
-{
-    // Turn off device.
-    if (current > limit)
-    {
-        digitalWrite(PWM_Pins[index], LOW);
-
-        // Change the stored state and start the timer.
-        Devices[index].RecordTime();
-    }
-    // Only attempt to restart if there is no current and
-    // the device is not attempting to restart already.
-    // Even thought the device is performing a ramp up the
-    // current might still be 0.
-    if (current == 0 && !currentlyRestarting[index])
-    {
-        // Set device state to off to start the timer.
-        Devices[index].SetDeviceOff(true);
-
-        // Restart device based on if the criteria.
-        if (Devices[index].AttemptRestart())
-        {
-            currentlyRestarting[index] = true;
-            read_timer.AddTimer(
-                100,
-                [index]()
-                { Devices[index].RampUp(); },
-                255 / PWM_Int[index] + 1);
-        }
-    }
-    // If the device is actually ramping up
-    // then there will be a small increase in current
-    // so we can reset the currentlyRestarting variable.
-    if (current >= 0.5)
-    {
-        currentlyRestarting[index] = false;
-        Devices[index].SetDeviceOff(false);
-    }
-}
-
-/**
- * @brief Update times for all devices that are turned off.
- * @return void
- */
-void UpdateTime()
-{
-    for (uint8_t index = 0; index < Devices.size(); index++)
-    {
-        Devices[index].UpdateTime();
-    }
-}
-
-/**
  * @brief Slowly turn on all devices.
  * @return void
  */
@@ -230,53 +128,6 @@ void StartUpRamp()
             255 / PWM_Int[index] + 1);
     }
 }
-
-/**
- * @brief Read currents and turn on/off devices.
- * @return void
- */
-// void ReadCurrents()
-// {
-//     // TODO: Check if v5 rail, v12 rail, and vbat rail turn off
-//     // with the specified pin.
-//     // I think its wrong because its a CSense pin but I doubt its
-//     // one of the enable pins.
-
-//     //  = FIVEV_Current && Enable/Disable
-//     v5_rail_signal = pdm_board.ReadCurrent(pdm_board.FIVEV_CSENSE, 0);
-//     ToggleDevice(pdm_board.FIVEV_CSENSE, v5_rail_signal, 5);
-//     // = TWELVEV_Current && Enable/Disable
-//     v12_rail_signal = pdm_board.ReadCurrent(pdm_board.TWELVEV_CSENSE, 0);
-//     ToggleDevice(pdm_board.TWELVEV_CSENSE, v12_rail_signal, 5);
-//     // = VBAT_RAIL_Current && Enable/Disable
-//     vbat_rail_signal = pdm_board.ReadCurrent(pdm_board.VBAT_RAIL_CSENSE, 0);
-//     ToggleDevice(pdm_board.VBAT_RAIL_CSENSE, vbat_rail_signal, 5);
-//     // = VBAT_Current
-//     vbat_input_current_signal = pdm_board.ReadCurrent(pdm_board.VBAT_CSENSE, 1);
-//     // = VBAT_Voltage
-//     vbat_input_voltage_signal = pdm_board.ReadVoltage(pdm_board.VBAT_VSENSE);
-
-//     // = AC_FAN_12V_Current && Enable/Disable
-//     air_fan_signal = pdm_board.ReadCurrent(pdm_board.AC_FAN_12V_CSENSE, 0);
-//     RampDevice(0, air_fan_signal, 20);
-
-//     Serial.println("AC FAN 12 V:");
-//     Serial.println(air_fan_signal);
-//     Serial.println("\n");
-
-//     // = LC_FAN_12V_Current && Enable/Disable
-//     liquid_fan_signal = pdm_board.ReadCurrent(pdm_board.LC_FAN_12V_CSENSE, 0);
-//     RampDevice(1, liquid_fan_signal, 20);
-//     // = LC_PUMP_12V_Current && Enable/Disable
-//     liquid_pump_signal = pdm_board.ReadCurrent(pdm_board.LC_PUMP_12V_CSENSE, 0);
-//     RampDevice(2, liquid_pump_signal, 20);
-//     // = TWELVEV_HSD1_Current && Enable/Disable
-//     hsd_1_signal = pdm_board.ReadCurrent(pdm_board.TWELVEV_HSD1_CSENSE, 0);
-//     RampDevice(3, hsd_1_signal, 1);
-//     // = TWELVEV_HSD2_Current && Enable/Disable
-//     hsd_2_signal = pdm_board.ReadCurrent(pdm_board.TWELVEV_HSD1_CSENSE, 0);
-//     RampDevice(4, hsd_2_signal, 1);
-// }
 
 void setup()
 {
@@ -293,8 +144,6 @@ void setup()
     can_bus.Initialize(ICAN::BaudRate::kBaud1M);
 
     // Initialize our timers.
-    // read_timer.AddTimer(100, UpdateTime);
-    // read_timer.AddTimer(100, ReadCurrents);
     read_timer.AddTimer(100, ControlBrakeLight);
 }
 
@@ -302,5 +151,4 @@ void loop()
 {
     can_bus.Tick();
     read_timer.Tick(millis());
-    // digitalWrite(pdm_board.AC_FAN_12V_ENABLE, LOW);
 }
