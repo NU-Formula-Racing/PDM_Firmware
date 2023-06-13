@@ -60,7 +60,7 @@ std::array<uint8_t, 2> PWM_Pins = {
 std::array<uint8_t, 2> PWM_Chan = {0, 1};
 
 // The amount the duty cycle increases with each call to Device.RampUp().
-std::array<uint8_t, 2> PWM_Int = {50, 50};
+std::array<uint8_t, 2> PWM_Int = {3, 50};
 
 // Track which device/s are trying to currently restart.
 // This is necessary to not attempt another restart when
@@ -293,7 +293,7 @@ void setup()
     can_bus.Initialize(ICAN::BaudRate::kBaud1M);
 
     // Initialize our timers.
-    read_timer.AddTimer(100, UpdateTime);
+    // read_timer.AddTimer(100, UpdateTime);
     // read_timer.AddTimer(100, ReadCurrents);
     read_timer.AddTimer(100, ControlBrakeLight);
 }

@@ -16,13 +16,13 @@ Device::Device(uint8_t pwmPin, uint8_t channel, float percent, uint8_t pwmInterv
     }
     percentage = percent;
     dutyCycle = 0.0f;
-    frequency = 1000.0f;
+    frequency = 2000.0f;
     pwmResolution = 8;
     /// Handle Restarting Device ///
     // Check that pwmInterval makes sense.
     if (pwmInterval < 1 || pwmInterval > 255)
     {
-        pwmInterval = 50;
+        pwmInterval = 0;
     }
     PWM_INTERVAL = pwmInterval;
     standoffTime = 5000;
@@ -96,9 +96,11 @@ bool Device::AttemptRestart()
 void Device::RampUp()
 {
     // Turn on device.
-    if (dutyCycle <= 255 * percentage)
+    if (dutyCycle + PWM_INTERVAL <= 100 * percentage)
     {
         PWM_Instance->setPWM(PWM_PIN, frequency, dutyCycle + PWM_INTERVAL);
+        dutyCycle += PWM_INTERVAL;
+        // Serial.println(dutyCycle);
     }
 }
 
