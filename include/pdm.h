@@ -27,7 +27,7 @@ public:
     // Sensor Pin Defines
 
     // Enable Pin Defines
-    static constexpr int TWELVEV_HSD1_ENABLE = 23;
+    static constexpr int TWELVEV_HSD1_ENABLE = 22;
     static constexpr int AC_FAN_12V_ENABLE = 18;  // now only has to be high
     static constexpr int LC_FAN_12V_ENABLE = 19;  // PWM
     static constexpr int LC_PUMP_12V_ENABLE = 21; // PWM

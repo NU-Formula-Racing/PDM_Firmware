@@ -102,7 +102,7 @@ CANRXMessage<1> rx_message_2{can_bus, pdm_board.kCANIdP, brake_percentage_rx_sig
 void ControlBrakeLight()
 {
     // Turn on device.
-    if (front_brake_press_rx_signal > 50 || back_brake_press_rx_signal > 300 || brake_percentage_rx_signal > 5)
+    if (front_brake_press_rx_signal > 50 || back_brake_press_rx_signal > 300 || brake_percentage_rx_signal > 15)
     {
         digitalWrite(pdm_board.TWELVEV_HSD1_ENABLE, HIGH);
     }
